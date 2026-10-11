@@ -18,9 +18,8 @@
 
 ### 4. Ранжирование Okapi BM25
 Функция ранжирования полнотекстового поиска, оценивающая релевантность документа на основе частоты терминов.
-  * [Wikipedia]([https://wikipedia.org](https://ru.wikipedia.org/wiki/Okapi_BM25))
+  * [Wikipedia](https://ru.wikipedia.org/wiki/Okapi_BM25)
   * [Elasticsearch Guide](https://www.elastic.co/blog/practical-bm25-part-2-the-bm25-algorithm-and-its-variables)
 
 ### 5. RISC-V Vector Extension (RVV)
-* **Полезные материалы и спецификация:**
 * Intrinsic Viewer https://dzaima.github.io/intrinsics-viewer/
