@@ -6,5 +6,6 @@ __Цель проекта__ - разработка упрощенной in-memor
 __Приложение:__ хранение и обработка метаданных медиафайлов, c поддержкой числовых фильтров, полнотекстовый поиска и семантического поиска по картинкам/тексту.
 
 __Примеры, аналоги__
-DuckDB https://duckdb.org/docs/current/
-PostgreSQL https://www.postgresql.org/
+- DuckDB https://duckdb.org/docs/current/
+- PostgreSQL https://www.postgresql.org/
+- Hyrise https://github.com/hyrise/hyrise (исследовательская)
