@@ -4,7 +4,7 @@ set(CMAKE_SYSTEM_PROCESSOR x86_64)
 set(CMAKE_CXX_COMPILER g++)
 set(CMAKE_C_COMPILER   gcc)
 
-# Если пользователь не передал архитектуру вручную, ставим базовую x86-64-v3 (AVX2)
+
 if(NOT DEFINED TARGET_ARCH)
     set(TARGET_ARCH "x86-64-v3")
 endif()
