@@ -37,13 +37,6 @@ try_compile(HAVE_RVV_1P0
             ${CMAKE_SOURCE_DIR}/cmake/checks/compile_rvv_1p0.cpp
             )
 
-message ("    check HAVE_MKL")
-try_compile(HAVE_MKL
-            ${CMAKE_BINARY_DIR}
-            ${CMAKE_SOURCE_DIR}/cmake/checks/compile_mkl.cpp
-            )
-
 assign_bool(BUILD_RVV ((HAVE_RVV_0P7 OR HAVE_RVV_1P0) AND WITH_RVV_LIB))
 assign_bool(BUILD_ACCURACY_TESTS (WITH_ACCURACY_TESTS))
 assign_bool(BUILD_PERF_TESTS (WITH_PERF_TESTS))
-assign_bool(BUILD_CONVERT_TO_BIN (WITH_CONVERT_TO_BIN))

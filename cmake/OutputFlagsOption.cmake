@@ -37,8 +37,9 @@ message ("---------------------- compiling components ------------------------- 
 status("Build the scalar library                : " ${BUILD_SCALAR})
 status("Build the avx512 library                : " ${BUILD_AVX512})
 status("Build the RVV    library                : " ${BUILD_RVV})
-status("Build the tests for library             : " ${BUILD_TESTS})
-status("Build the performance tests for library : " ${BUILD_BENCHMARK})
-status("Build sql parser          				: " ${BUILD_SQLPARSER})
+status("Build sql parser						: " ${WITH_SQLPARSER})
+
+#status("Build the tests for library             : " ${BUILD_TESTS})
+#status("Build the performance tests for library : " ${BUILD_BENCHMARK})
 
 message ("======================= RVVMV build option ========================= ")

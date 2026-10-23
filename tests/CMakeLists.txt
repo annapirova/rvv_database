@@ -1,0 +1,1 @@
+create_executable_test_project(db_tests)

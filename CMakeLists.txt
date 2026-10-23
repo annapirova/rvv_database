@@ -1,9 +1,11 @@
 cmake_minimum_required(VERSION 3.20 FATAL_ERROR)
+cmake_policy(SET CMP0135 NEW)
 
 project(SparseMatrix)
 
 set (CMAKE_CONFIGURATION_TYPES "Debug;Release") 
 set (CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if (NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
@@ -22,7 +24,8 @@ option(WITH_AVX512_LIB     "Build the avx512 library" ON)
 option(WITH_RVV_LIB        "Build the RVV library" ON)
 option(WITH_TESTS		   "Build google test" ON)
 option(WITH_BENCHMARK	   "Build google benchmark" ON)
-option(WITH_SQLPARSER	   "Build sqlparser" ON)
+option(WITH_SQLPARSER	   "Build sqlparser" OFF)
+
 
 include(cmake/TargetCreationFunctions.cmake)
 include(cmake/TestEnvironment.cmake)
@@ -43,17 +46,24 @@ if(BUILD_RVV)
 endif()
 
 
-add_subdirectory(src)
+set_property(GLOBAL PROPERTY LIBS_P "")
 
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 set(BENCHMARK_ENABLE_TESTING OFF)
-set(HAVE_STD_REGEX 0)
-set(HAVE_STEADY_CLOCK 0)
-set(HAVE_POSIX_REGEX 0)
-add_subdirectory("thirtdparty/googtest" EXCLUDE_FROM_ALL)
-add_subdirectory("thirtdparty/benchmark" EXCLUDE_FROM_ALL)
-add_subdirectory("thirtdparty/sql-parser" EXCLUDE_FROM_ALL)
+add_subdirectory("thirdparty/googletest" EXCLUDE_FROM_ALL)
+add_subdirectory("thirdparty/benchmark" EXCLUDE_FROM_ALL)
 
 enable_testing()
 
-add_subdirectory(test_system)
+if (WITH_SQLPARSER)
+	add_subdirectory(thirdparty/sql-parser EXCLUDE_FROM_ALL)
+endif()
+
+# build main library
+add_subdirectory(itlab_db)
+
+if (WITH_TESTS)
+	add_subdirectory(tests)
+endif()
+	
+# add_subdirectory(apps)
