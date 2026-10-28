@@ -2,54 +2,26 @@ name: CMake Database Linux Build
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "master", "main" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "master", "main" ]
 
 jobs:
   build:
-    runs-on: ubuntu-24.04 
+    runs-on: ubuntu-24.04
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        submodules: recursive 
+        submodules: recursive
 
-    - name: Install System Dependencies & GCC 15
+    - name: Install Generation Tools
       run: |
         sudo apt-get update
-        sudo apt-get install -y software-properties-common
-        sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
-        sudo apt-get update
-        sudo apt-get install -y gcc-15 g++-15 build-essential wget tar bison
-        # Настраиваем альтернативы, чтобы g++ и gcc вели на 15 версию
-        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-15 100
-        sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-15 100
+        sudo apt-get install -y build-essential bison m4 flex
 
-    - name: Build and Install GNU M4
-      run: |
-        mkdir -p $HOME/.local/bin
-        cd /tmp
-        wget https://ftp.gnu.org/gnu/m4/m4-1.4.19.tar.gz
-        tar -xf m4-1.4.19.tar.gz
-        cd m4-1.4.19
-        ./configure --prefix=$HOME/.local
-        make -j$(nproc)
-        make install
-        echo "$HOME/.local/bin" >> $GITHUB_PATH 
-
-    - name: Build and Install Flex
-      run: |
-        cd /tmp
-        wget https://toolchains.bootlin.com/downloads/releases/sources/flex-2.6.4/flex-2.6.4.tar.gz
-        tar -xf flex-2.6.4.tar.gz
-        cd flex-2.6.4
-        M4=$HOME/.local/bin/m4 ./configure --prefix=$HOME/.local
-        make -j$(nproc)
-        make install
-
-    - name: Verify Tools & Environment
+    - name: Verify Tools
       run: |
         gcc --version
         g++ --version
@@ -58,13 +30,11 @@ jobs:
 
     - name: Configure CMake
       run: |
-        export M4=$HOME/.local/bin/m4
         mkdir build_test
         cd build_test
         cmake -DCMAKE_TOOLCHAIN_FILE=../toolchains/default-gcc.toolchain.cmake ..
 
     - name: Build Project
       run: |
-        export M4=$HOME/.local/bin/m4
         cd build_test
         make -j$(nproc)
