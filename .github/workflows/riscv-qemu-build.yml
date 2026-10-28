@@ -2,13 +2,13 @@ name: RISC-V RVV 1.0 Build & Simulation via QEMU
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "master", "main" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "master", "main" ]
 
 jobs:
   riscv-build:
-    runs-on: ubuntu-24.04 
+    runs-on: ubuntu-24.04
 
     steps:
     - name: Checkout repository
@@ -16,7 +16,7 @@ jobs:
       with:
         submodules: recursive
 
-    - name: Install RISC-V Cross-Compiler & QEMU
+    - name: Install RISC-V Cross-Compiler, QEMU & Tools
       run: |
         sudo apt-get update
         sudo apt-get install -y \
@@ -25,32 +25,9 @@ jobs:
           qemu-user \
           qemu-user-static \
           build-essential \
-          cmake \
           bison \
-          wget \
-          tar
-
-    - name: Build and Install GNU M4
-      run: |
-        mkdir -p $HOME/.local/bin
-        cd /tmp
-        wget https://ftp.gnu.org/gnu/m4/m4-1.4.19.tar.gz
-        tar -xf m4-1.4.19.tar.gz
-        cd m4-1.4.19
-        ./configure --prefix=$HOME/.local
-        make -j$(nproc)
-        make install
-        echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-    - name: Build and Install Flex
-      run: |
-        cd /tmp
-        wget https://toolchains.bootlin.com/downloads/releases/sources/flex-2.6.4/flex-2.6.4.tar.gz
-        tar -xf flex-2.6.4.tar.gz
-        cd flex-2.6.4
-        M4=$HOME/.local/bin/m4 ./configure --prefix=$HOME/.local
-        make -j$(nproc)
-        make install
+          m4 \
+          flex
 
     - name: Configure QEMU Environment Variables
       run: |
@@ -59,18 +36,15 @@ jobs:
 
     - name: Configure CMake for RISC-V
       run: |
-        export M4=$HOME/.local/bin/m4
         mkdir build_riscv
         cd build_riscv
         cmake -DCMAKE_TOOLCHAIN_FILE=../toolchains/riscv64-1p0-gcc.toolchain.cmake ..
 
     - name: Build Project
       run: |
-        export M4=$HOME/.local/bin/m4
         cd build_riscv
         make -j$(nproc)
 
-    # Запуск автоматических тестов (ctest) внутри эмулятора QEMU
     # - name: Run Tests via QEMU
     #  run: |
     #    cd build_riscv
