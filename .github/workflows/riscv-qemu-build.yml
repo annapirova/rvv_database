@@ -34,7 +34,7 @@ jobs:
       run: |
         mkdir -p $HOME/.local/bin
         cd /tmp
-        wget https://gnu.org
+        wget https://ftp.gnu.org/gnu/m4/m4-1.4.19.tar.gz
         tar -xf m4-1.4.19.tar.gz
         cd m4-1.4.19
         ./configure --prefix=$HOME/.local
@@ -45,7 +45,7 @@ jobs:
     - name: Build and Install Flex
       run: |
         cd /tmp
-        wget https://github.com
+        wget https://toolchains.bootlin.com/downloads/releases/sources/flex-2.6.4/flex-2.6.4.tar.gz
         tar -xf flex-2.6.4.tar.gz
         cd flex-2.6.4
         M4=$HOME/.local/bin/m4 ./configure --prefix=$HOME/.local
