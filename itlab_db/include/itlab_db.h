@@ -15,3 +15,6 @@ public:
 			std::cout << x << " ";
 	}
 };
+
+void test1();
+int test2();
