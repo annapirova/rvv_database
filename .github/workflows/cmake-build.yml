@@ -2,13 +2,24 @@ name: CMake Database Linux Build
 
 on:
   push:
-    branches: [ "master", "main" ]
+    branches: [ main, master ]
+    paths-ignore:
+      - '**.md'
+      - '**.txt'
+      - 'docs/**'
   pull_request:
-    branches: [ "master", "main" ]
+    branches: [ main, master ]
+    paths-ignore:
+      - '**.md'
+      - '**.txt'
+      - 'docs/**'
 
 jobs:
   build:
     runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        sql_parser: [ON, OFF]
 
     steps:
     - name: Checkout repository
@@ -32,7 +43,7 @@ jobs:
       run: |
         mkdir build_test
         cd build_test
-        cmake -DCMAKE_TOOLCHAIN_FILE=../toolchains/default-gcc.toolchain.cmake ..
+        cmake -DCMAKE_TOOLCHAIN_FILE=../toolchains/default-gcc.toolchain.cmake -DWITH_SQLPARSER=${{ matrix.sql_parser }} ..
 
     - name: Build Project
       run: |
