@@ -1,16 +1,15 @@
 3
 id count age
-int int int
+INT32 INT32 INT32
 3
-
 1
 2
 3
-
+3
 100
 150
 200
-
+3
 18
 19
 20

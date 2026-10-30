@@ -1,4 +1,4 @@
-#include "Table.h"
+#include "../include/Table.h"
 
 void Table::create_new_chunk() {
     Chunk new_chunk;
@@ -11,7 +11,7 @@ void Table::create_new_chunk() {
         case DataType::INT32:        new_chunk.get_column(i).allocate_aligned<int32_t>(); break;
         case DataType::INT64:        new_chunk.get_column(i).allocate_aligned<int64_t>(); break;
         case DataType::FLOAT32:      new_chunk.get_column(i).allocate_aligned<float>(); break;
-        case DataType::FIXED_STRING: new_chunk.get_column(i).allocate_aligned<std::array<char, 256>>(); break;
+        case DataType::FIXED_STRING: new_chunk.get_column(i).allocate_aligned<char[256]>(); break;
         default: throw std::runtime_error("Unknown data type!");
         }
     }
@@ -78,13 +78,16 @@ void Table::load_from_file(const std::string& filename) {
 
     // Строка 2: N слов через пробел (типы колонок)
     std::getline(file, line);
-    std::istringstream types_stream(line);
+    std::istringstream columns_stream(line);
 
     for (size_t i = 0; i < num_columns; ++i) {
         std::string name;
-        types_stream >> name;
+        columns_stream >> name;
         column_names_.push_back(name);
     }
+
+    std::getline(file, line);
+    std::istringstream types_stream(line);
 
     for (size_t i = 0; i < num_columns; ++i) {
         std::string type_str;

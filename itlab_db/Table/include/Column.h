@@ -1,9 +1,10 @@
 #pragma once
 #include <stdexcept>
-#include <array>
+#include <cstdlib>
 #include <new>
+#include <cstdint>
 
-enum class DataType {
+enum class DataType : uint8_t {
     INT32,
     INT64,
     FLOAT32,
@@ -13,16 +14,20 @@ enum class DataType {
 class Column {
 
 public:
-    static constexpr size_t MAX_ROWS = 1024;
-    static constexpr size_t ALIGNMENT = 64;
-    Column(DataType type) : row_count_(0), type_(type), raw_data_(nullptr), deleter(nullptr) {}
+    static constexpr size_t MAX_ROWS = 64;
+    static constexpr size_t ALIGNMENT = 16;
+    Column(DataType type) : row_count_(0), type_(type), raw_data_(nullptr) {}
+    Column(Column&& other) : raw_data_(other.raw_data_), type_(other.type_), row_count_(other.row_count_){
+        other.raw_data_ = nullptr;
+        other.row_count_ = 0;
+    }
     ~Column() {
         free_aligned(raw_data_);
     }
 
     template<typename T>
-    T* get() const {
-        return reinterpret_cast<T*>(raw_data_);
+    inline T* get() const {
+        return static_cast<T*>(raw_data_);
     }
 
     // Умная функция выделения выровненной памяти
@@ -31,21 +36,14 @@ public:
 
         free_aligned(raw_data_);
 
-        // 1. Выделение "чистой" выровненной памяти и заполнение нулями ()
-        raw_data_ = ::operator new[](sizeof(T)* MAX_ROWS, std::align_val_t(ALIGNMENT));
-
-        // 2. Безопасный Deleter (деструкторы вызывать не нужно, тип тривиальный)
-        deleter = [](void* ptr) {
-            if (!ptr) return;
-            ::operator delete[](ptr, std::align_val_t(ALIGNMENT));
-        };
+        raw_data_ = ::operator new[](sizeof(T)* MAX_ROWS, ::std::align_val_t(ALIGNMENT));
     }
 
     inline void free_aligned(void* ptr) {
-        if (raw_data_ && deleter) {
-            deleter(raw_data_);
+        if (raw_data_!=nullptr) {
+            ::operator delete[](raw_data_, ::std::align_val_t(ALIGNMENT));
             raw_data_ = nullptr;
-            deleter = nullptr;
+            row_count_ = 0;
         }
     }
 
@@ -67,9 +65,20 @@ public:
     bool is_full() const noexcept { return row_count_ >= MAX_ROWS; }
     bool is_empty() const noexcept { return row_count_ == 0; }
 
+    Column& operator=(Column&& other) noexcept {
+        if (this != &other) {
+            free_aligned(raw_data_);
+            raw_data_ = other.raw_data_;
+            type_ = other.type_;
+            row_count_ = other.row_count_;
+            other.raw_data_ = nullptr;
+            other.row_count_ = 0;
+        }
+        return (*this);
+    }
+
 private:
     void* raw_data_;
     DataType type_;
     size_t row_count_;
-    void (*deleter)(void* ptr);
 };

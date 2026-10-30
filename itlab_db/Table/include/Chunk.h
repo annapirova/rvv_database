@@ -5,11 +5,15 @@
 #include <string>
 
 class Chunk {
-    //std::byte* memory;
     std::vector<Column> columns;
 
 public:
     // Чанк полон, если хотя бы одна его колонка заполнена
+    Chunk() {}
+    Chunk(Chunk&& other) noexcept {
+        columns = std::move(other.columns);
+    }
+
     bool is_full() const noexcept {
         if (columns.empty()) return false;
         return columns[0].is_full();
@@ -26,6 +30,13 @@ public:
 
     void add_column(const DataType& type) {
         columns.emplace_back(type);
+    }
+
+    Chunk& operator=(Chunk&& other) noexcept {
+        if (this != &other) {
+            columns = std::move(other.columns);
+        }
+        return (*this);
     }
 };
 
