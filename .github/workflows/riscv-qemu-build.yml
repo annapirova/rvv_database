@@ -1,0 +1,51 @@
+name: RISC-V RVV 1.0 Build & Simulation via QEMU
+
+on:
+  push:
+    branches: [ "master", "main" ]
+  pull_request:
+    branches: [ "master", "main" ]
+
+jobs:
+  riscv-build:
+    runs-on: ubuntu-24.04
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install RISC-V Cross-Compiler, QEMU & Tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          gcc-riscv64-linux-gnu \
+          g++-riscv64-linux-gnu \
+          qemu-user \
+          qemu-user-static \
+          build-essential \
+          bison \
+          m4 \
+          flex
+
+    - name: Configure QEMU Environment Variables
+      run: |
+        echo "QEMU_CPU=rv64,v=true,vext_spec=v1.0" >> $GITHUB_ENV
+        echo "QEMU_LD_PREFIX=/usr/riscv64-linux-gnu" >> $GITHUB_ENV
+
+    - name: Configure CMake for RISC-V
+      run: |
+        mkdir build_riscv
+        cd build_riscv
+        cmake -DCMAKE_TOOLCHAIN_FILE=../toolchains/riscv64-1p0-gcc.toolchain.cmake ..
+
+    - name: Build Project
+      run: |
+        cd build_riscv
+        make -j$(nproc)
+
+    # - name: Run Tests via QEMU
+    #  run: |
+    #    cd build_riscv
+    #    ctest --output-on-failure
