@@ -1,8 +1,8 @@
+#include <array>
 #include <cstdint>
 #include <iostream>
 #include <stdexcept>
 #include <vector>
-#include <array>
 
 template <typename K, typename V> class HashTable {
   enum State : uint8_t { EMPTY, OCCUPIED, TOMBSTONE };
@@ -64,21 +64,27 @@ template <typename K, typename V> class HashTable {
   };
 
   static bool isPrime(size_t x) {
-    if (x < 2) return false;
-    if (x % 2 == 0) return x == 2;
+    if (x < 2)
+      return false;
+    if (x % 2 == 0)
+      return x == 2;
     for (size_t i = 3; i * i <= x; i += 2)
-      if (x % i == 0) return false;
+      if (x % i == 0)
+        return false;
     return true;
   }
   static size_t slowNextPrime(size_t n) {
-    while (!isPrime(n)) ++n;
+    while (!isPrime(n))
+      ++n;
     return n;
   }
 
   static size_t nextPrime(size_t n) {
-    if (n <= PRIMES.front()) return PRIMES.front();
+    if (n <= PRIMES.front())
+      return PRIMES.front();
     auto it = std::lower_bound(PRIMES.begin(), PRIMES.end(), n);
-    if (it != PRIMES.end()) return *it;
+    if (it != PRIMES.end())
+      return *it;
     return slowNextPrime(n);
   }
 
@@ -115,8 +121,8 @@ template <typename K, typename V> class HashTable {
     for (size_t i = 0; i < m; ++i) {
       size_t idx = (h + i * i) % m;
       if (table[idx].state != OCCUPIED) {
-        table[idx].key = std::move(key);
-        table[idx].value = std::move(value);
+        table[idx].key = key;
+        table[idx].value = value;
         table[idx].state = OCCUPIED;
         ++count;
         return;
