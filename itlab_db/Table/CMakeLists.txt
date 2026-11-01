@@ -1,0 +1,1 @@
+create_project_lib(Table "${CMAKE_CURRENT_SOURCE_DIR}/include")

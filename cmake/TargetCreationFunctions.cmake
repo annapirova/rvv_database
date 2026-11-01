@@ -87,6 +87,21 @@ function(create_executable_test_project TARGET)
     file(GLOB_RECURSE TARGET_HD "*.h*")
     
     add_executable(${TARGET} ${TARGET_SRC} ${TARGET_HD})
+    
+    file(GLOB_RECURSE TEST_DATA_FILES "*.csv")
+    
+    foreach(DATA_FILE ${TEST_DATA_FILES})
+        # Получаем только имя файла (например, "input.txt" из полного пути)
+        get_filename_component(FILE_NAME ${DATA_FILE} NAME)
+        
+        # Говорим CMake скопировать файл сразу после успешной сборки теста
+        add_custom_command(TARGET ${TARGET} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy
+            "${DATA_FILE}"
+            "$<TARGET_FILE_DIR:${TARGET}>/${FILE_NAME}"
+            COMMENT "Copying test data: ${FILE_NAME}"
+        )
+    endforeach()
 
     target_include_directories(${TARGET} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_SOURCE_DIR}/include")
 
