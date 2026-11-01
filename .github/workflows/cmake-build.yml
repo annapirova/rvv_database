@@ -1,0 +1,51 @@
+name: CMake Database Linux Build
+
+on:
+  push:
+    branches: [ main, master ]
+    paths-ignore:
+      - '**.md'
+      - '**.txt'
+      - 'docs/**'
+  pull_request:
+    branches: [ main, master ]
+    paths-ignore:
+      - '**.md'
+      - '**.txt'
+      - 'docs/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        sql_parser: [ON, OFF]
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install Generation Tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential bison m4 flex
+
+    - name: Verify Tools
+      run: |
+        gcc --version
+        g++ --version
+        m4 --version
+        flex --version
+
+    - name: Configure CMake
+      run: |
+        mkdir build_test
+        cd build_test
+        cmake -DCMAKE_TOOLCHAIN_FILE=../toolchains/default-gcc.toolchain.cmake -DWITH_SQLPARSER=${{ matrix.sql_parser }} ..
+
+    - name: Build Project
+      run: |
+        cd build_test
+        make -j$(nproc)
