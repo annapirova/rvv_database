@@ -4,51 +4,19 @@
 #include <vector>
 #include <memory>
 #include <stdexcept>
+#include <array>
+#include <cstring>
+#include <utility>
+
 
 #include "SQLParser.h"
 #include "util/sqlhelper.h"
 
+#include "../Table/include/Table.h"
+#include "../Table/include/Column.h"
+#include "../Table/include/Chunk.h"
+
 using namespace std;
-
-class BaseColumn{
-    vector<string> col;
-public:
-    BaseColumn(vector<string> other) : col(other) {}
-    string operator[](size_t index) const {
-        return col[index];
-    }
-
-    size_t size() const { return col.size(); }
-};
-
-
-class SimpleTable {
-private:
-    vector<BaseColumn> table;
-public:
-    SimpleTable(vector<BaseColumn> cols):table(cols) {}
-
-    vector<BaseColumn>& get_table() { return table; }
-
-    uint32_t get_index(string col_name)const {
-        for (size_t i = 0; i < table.size(); ++i) {
-            if (table[i][0] == col_name) {
-                return i;
-            }
-        }
-        return -1;
-    }
-    vector<BaseColumn> get_columns(pair<vector<BaseColumn>,vector<size_t>> par){
-        vector<BaseColumn> ans;
-        for(uint32_t i = 0;i < par.second.size();++i){
-            if(par.second[i] < par.first.size()){ans.push_back(par.first[par.second[i]]);}
-        }
-        return ans;
-    }
-    BaseColumn operator[](size_t index) const {
-        return table[index];
-    }
-};
 
 enum WhereOpType {
     EQUAL, // =
@@ -117,25 +85,32 @@ public:
 
     ~WhereTurboExpr() { if(left){delete left;} if(right){delete right;} left = nullptr;right=nullptr; }
 
-    string execute_sup(WhereTurboExpr* this_expr, const vector<BaseColumn>& cols, size_t row_idx, const SimpleTable& table) {
+// problem - work only with string ,but in table every data exist
+
+
+    string execute_sup(WhereTurboExpr* this_expr,size_t row_idx,Table& table) { //const Table in the future
         if (this_expr->getOpType() == NUL) {
             return this_expr->get_value();
         }
         if (this_expr->getOpType() == NAME) {
-            uint32_t col_idx = table.get_index(this_expr->get_name());
+            uint32_t col_idx = table.get_column_index(this_expr->get_name());
+            uint32_t chunk_idx = row_idx / 64; // пока Игорь не вынес константу или получение колонки
             if (col_idx != -1) {
-                return cols[col_idx][row_idx];
+
+                char* ptr = table.get_column(chunk_idx,col_idx).get<char[256]>()[row_idx];
+
+                return string(ptr);
             }
         }
         return "";
     }
 
-    bool execute(WhereTurboExpr* this_expr, const vector<BaseColumn>& cols, size_t row_idx, const SimpleTable& table) { //рекурсиивный парс дерева
+    bool execute(WhereTurboExpr* this_expr, size_t row_idx, Table& table) { //рекурсиивный парс дерева (also const Table need)
         if (!this_expr) return false;
 
         if (this_expr->getOpType() != AND && this_expr->getOpType() != OR && this_expr->getOpType() != NUL && this_expr->getOpType() != NAME) {
-            string left_value = execute_sup(this_expr->get_left(), cols, row_idx, table);
-            string right_value = execute_sup(this_expr->get_right(), cols, row_idx, table);
+            string left_value = execute_sup(this_expr->get_left(), row_idx, table);
+            string right_value = execute_sup(this_expr->get_right(),row_idx, table);
 
             switch(this_expr->getOpType()) {
             case EQUAL:return left_value == right_value;
@@ -148,35 +123,73 @@ public:
             }
         }
         else if (this_expr->getOpType() == AND || this_expr->getOpType() == OR) {
-            bool one = execute(this_expr->get_left(), cols, row_idx, table);
-            bool two = execute(this_expr->get_right(), cols, row_idx, table);
+            bool one = execute(this_expr->get_left(), row_idx, table);
+            bool two = execute(this_expr->get_right(), row_idx, table);
             return (this_expr->getOpType() == AND) ? (one && two) : (one || two);
         }
         return false;
     }
 };
 
+class QueryResult{
+    Table table;
+    vector<size_t> indexes;
+public:
+    QueryResult(Table _table,vector<size_t> _indexes):table(_table),indexes(_indexes){}
+    QueryResult(const QueryResult& other):table(other.table),indexes(other.indexes){}
+    void delete_row(size_t row_id){
+        indexes.erase(indexes.begin() + row_id);
+    }
+    vector<string>& get_names(){
+        return table.column_names();
+    }
+    size_t get_str_count(){
+        size_t count = 0;
+        size_t ch_sz = table.get_chunk_size();
+        for(int i =0 ; i<ch_sz;++i){
+            size_t row_sz = table.get_chunks()[i].get_rows_count();
+            count += row_sz;
+        }
+        return count;
+    }
+    string get_row(size_t row_id){
+        if(row_id >= get_str_count()){throw out_of_range("out of range");}
+        string res = "";
+        size_t ch_id = row_id /64;
+        size_t col_cnt = table.column_names().size();
+        for(int i = 0;i < col_cnt;++i){
+            char* ptr = table.get_column(ch_id,i).get<char[256]>()[row_id];
+            res += string(ptr);
+        }
+        return res;
+    }
+    Table& get_table(){
+        return table;
+    }
+};
+
 class BaseOperator {
 public:
     virtual ~BaseOperator() = default;
-    virtual pair<vector<BaseColumn>, vector<size_t>> execute_operator() = 0;
+    virtual QueryResult execute_operator() = 0;
 };
 
 class GetTableOperator : public BaseOperator {
 private:
-    SimpleTable _table;
+    Table table;
 public:
-    GetTableOperator(SimpleTable table) : _table(table) {}
+    GetTableOperator(Table _table) : table(_table) {}
 
-    pair<vector<BaseColumn>, vector<size_t>> execute_operator() override {
-        vector<size_t> all_indices;
-        if (!_table.get_table().empty()) {
-            size_t row_count = _table.get_table()[0].size();
-            for (size_t i = 0; i < row_count; ++i) {
-                all_indices.push_back(i);
+    QueryResult execute_operator() override {
+        size_t ch_sz = table.get_chunk_size();
+        vector<size_t> tmp_ind;
+        for(int i =0 ; i<ch_sz;++i){
+            size_t row_sz = table.get_chunks()[i].get_rows_count();
+            for(int j =0 ;j<row_sz;++j){
+                tmp_ind.push_back(j + 64*i);
             }
         }
-        return {_table.get_table(), all_indices};
+        return QueryResult(table,tmp_ind);
     }
 };
 
@@ -184,62 +197,57 @@ class WhereOperator : public BaseOperator { // возвращаем индекс
 private:
     WhereTurboExpr* current;
     BaseOperator* prev;
-    SimpleTable& table;
-
 public:
-    WhereOperator(WhereTurboExpr* _current, BaseOperator* _prev, SimpleTable& _table):current(_current),prev(_prev),table(_table) {}
+    WhereOperator(WhereTurboExpr* _current, BaseOperator* _prev):current(_current),prev(_prev) {}
 
-    pair<vector<BaseColumn>, vector<size_t>> execute_operator() override {
-        auto prev_data = prev->execute_operator();
-        vector<BaseColumn> col = prev_data.first;
-        vector<size_t> incoming_indices = prev_data.second;
-
-        vector<size_t> bucket;
-
-        for (size_t i : incoming_indices) {
-            if (current->execute(current, col, i, table)) {
-                bucket.push_back(i);
+    QueryResult execute_operator() override {
+        QueryResult prev_data = prev->execute_operator();
+        size_t ch_sz = prev_data.get_table().get_chunk_size();
+        for(int i =0 ; i<ch_sz;++i){
+            size_t row_sz = prev_data.get_table().get_chunks()[i].get_rows_count();
+            for(int j =0 ;j<row_sz;++j){
+                size_t row_id = j+64*i;
+                if(!current->execute(current,row_id,prev_data.get_table())){
+                    prev_data.delete_row(row_id);
+                }
             }
         }
-
-        return {col, bucket};
+        return prev_data;
     }
+    ~WhereOperator(){if(current){delete[] current;}current=nullptr;}
 };
 
 class SelectOperator : public BaseOperator { //обрезаем колонки и строки,выводим результат
     vector<string> names;
     BaseOperator* where;
-    SimpleTable& table;
 public:
-    SelectOperator(vector<string> _names,WhereOperator* _where,SimpleTable& _table):names(_names),where(_where),table(_table){}
-    pair<vector<BaseColumn>, vector<size_t>> execute_operator() override {
-        pair<vector<BaseColumn>,vector<size_t>> par = where->execute_operator();
-        vector<BaseColumn> cols = par.first;vector<size_t>indexes = par.second;
-
-        vector<BaseColumn> final_col;
-        if(!names.empty() && names[0] == "*"){
-            final_col = cols;
-        }
-        else{
-            for(string name : names){
-                uint32_t index = table.get_index(name);
-                final_col.push_back(cols[index]);
-            }
-        }
-        for(size_t ind : indexes){
-            for(uint32_t i = 0 ; i < final_col.size();++i){
-                cout << final_col[i][ind] << " ";
-            }
-            cout << endl;
-        }
-        return {cols,indexes};
+    SelectOperator(WhereOperator* _where):where(_where){}
+    QueryResult execute_operator() override {
+        QueryResult prev_data = where->execute_operator();
+        this->names = prev_data.get_table().column_names();
+        return prev_data;
+        // vector<BaseColumn> final_col;
+        // if(!names.empty() && names[0] == "*"){
+        //     final_col = cols;
+        // }
+        // else{
+        //     for(string name : names){
+        //         uint32_t index = table.get_index(name);
+        //         final_col.push_back(cols[index]);
+        //     }
+        // }
+        // for(size_t ind : indexes){
+        //     for(uint32_t i = 0 ; i < final_col.size();++i){
+        //         cout << final_col[i][ind] << " ";
+        //     }
+        //     cout << endl;
+        // }
+        // return {cols,indexes};
     }
+    ~SelectOperator(){if(where){delete[] where;}where=nullptr;}
 };
+
 int main(){
-    BaseColumn c1({"id","1", "2", "3"});
-    BaseColumn c2({"name", "zlex", "cusi", "robot"});
-    BaseColumn c3({"city","Moscow", "Toronto", "Samara"});
-    SimpleTable db({c1, c2, c3});
 
     const string query = "SELECT city FROM table_name WHERE id > 1;";
     hsql::SQLParserResult result;
@@ -260,11 +268,16 @@ int main(){
         }
     }
 
+    Table db("Database");
+    Chunk s1;
+    //   не понятно как набить чанк или таблицу
+    db.get_chunks().push_back(std::move(s1));
+    db.column_names() = {"id", "name", "city"};
+
     WhereTurboExpr* math_tree = new WhereTurboExpr(select_stmt->whereClause);
     GetTableOperator* get_table = new GetTableOperator(db);
-    WhereOperator* where_node = new WhereOperator(math_tree, get_table, db);
-    SelectOperator* select_node = new SelectOperator(select_fields, where_node,db);
+    WhereOperator* where_node = new WhereOperator(math_tree, get_table);
+    SelectOperator* select_node = new SelectOperator(where_node);
     select_node->execute_operator();
-    delete math_tree;delete get_table;delete where_node;delete select_node;
     return 0;
 }

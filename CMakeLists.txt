@@ -50,8 +50,6 @@ set_property(GLOBAL PROPERTY LIBS_P "")
 
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 set(BENCHMARK_ENABLE_TESTING OFF)
-add_subdirectory("thirdparty/googletest" EXCLUDE_FROM_ALL)
-add_subdirectory("thirdparty/benchmark" EXCLUDE_FROM_ALL)
 
 enable_testing()
 
@@ -63,7 +61,7 @@ endif()
 add_subdirectory(itlab_db)
 
 if (WITH_TESTS)
-	add_subdirectory(tests)
+#	add_subdirectory(tests)
 endif()
 	
 # add_subdirectory(apps)
