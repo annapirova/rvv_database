@@ -2,12 +2,13 @@
 #include "Column.h"
 #include <cstdint>
 #include <cstring>
+#include "FixedString.h"
 
 // === Базовое создание ===
 
 TEST(ColumnTest, DefaultState) {
     Column col(DataType::INT32);
-    EXPECT_EQ(col.get_count(), 0);
+    EXPECT_EQ(col.get_row_count(), 0);
     EXPECT_TRUE(col.is_empty());
     EXPECT_FALSE(col.is_full());
     EXPECT_EQ(col.type(), DataType::INT32);
@@ -24,7 +25,7 @@ TEST(ColumnTest, AllocateAligned) {
     uintptr_t addr = reinterpret_cast<uintptr_t>(col.data());
     EXPECT_EQ(addr % Column::ALIGNMENT, 0);
 
-    EXPECT_EQ(col.get_count(), 0);
+    EXPECT_EQ(col.get_row_count(), 0);
 }
 
 // === Append и доступ ===
@@ -37,10 +38,10 @@ TEST(ColumnTest, AppendInt32) {
     col.append<int32_t>(-100);
     col.append<int32_t>(0);
 
-    EXPECT_EQ(col.get_count(), 3);
+    EXPECT_EQ(col.get_row_count(), 3);
     EXPECT_FALSE(col.is_empty());
 
-    int32_t* data = col.get<int32_t>();
+    int32_t* data = col.getDataT<int32_t>();
     EXPECT_EQ(data[0], 42);
     EXPECT_EQ(data[1], -100);
     EXPECT_EQ(data[2], 0);
@@ -53,7 +54,7 @@ TEST(ColumnTest, AppendInt64) {
     col.append<int64_t>(1234567890123LL);
     col.append<int64_t>(-9876543210987LL);
 
-    int64_t* data = col.get<int64_t>();
+    int64_t* data = col.getDataT<int64_t>();
     EXPECT_EQ(data[0], 1234567890123LL);
     EXPECT_EQ(data[1], -9876543210987LL);
 }
@@ -65,7 +66,7 @@ TEST(ColumnTest, AppendFloat32) {
     col.append<float>(3.14f);
     col.append<float>(-2.71f);
 
-    float* data = col.get<float>();
+    float* data = col.getDataT<float>();
     EXPECT_FLOAT_EQ(data[0], 3.14f);
     EXPECT_FLOAT_EQ(data[1], -2.71f);
 }
@@ -82,7 +83,7 @@ TEST(ColumnTest, Set) {
     col.set<int32_t>(0, 100);
     col.set<int32_t>(1, 200);
 
-    int32_t* data = col.get<int32_t>();
+    int32_t* data = col.getDataT<int32_t>();
     EXPECT_EQ(data[0], 100);
     EXPECT_EQ(data[1], 200);
 }
@@ -108,7 +109,7 @@ TEST(ColumnTest, FullColumn) {
     }
 
     EXPECT_TRUE(col.is_full());
-    EXPECT_EQ(col.get_count(), Column::MAX_ROWS);
+    EXPECT_EQ(col.get_row_count(), Column::MAX_ROWS);
 
     // Следующий append должен бросить исключение
     EXPECT_THROW(col.append<int32_t>(999), std::out_of_range);
@@ -127,12 +128,12 @@ TEST(ColumnTest, MoveConstructor) {
 
     // col2 получил данные
     EXPECT_EQ(col2.data(), original_ptr);
-    EXPECT_EQ(col2.get_count(), 1);
-    EXPECT_EQ(col2.get<int32_t>()[0], 42);
+    EXPECT_EQ(col2.get_row_count(), 1);
+    EXPECT_EQ(col2.get<int32_t>(0), 42);
 
     // col1 очищен
     EXPECT_EQ(col1.data(), nullptr);
-    EXPECT_EQ(col1.get_count(), 0);
+    EXPECT_EQ(col1.get_row_count(), 0);
 }
 
 TEST(ColumnTest, MoveAssignment) {
@@ -144,7 +145,7 @@ TEST(ColumnTest, MoveAssignment) {
     col2 = std::move(col1);
 
     EXPECT_EQ(col2.type(), DataType::INT32);
-    EXPECT_EQ(col2.get_count(), 1);
+    EXPECT_EQ(col2.get_row_count(), 1);
 }
 
 // === Выравнивание для SIMD ===
@@ -154,5 +155,21 @@ TEST(ColumnTest, Alignment) {
     col.allocate_aligned<int32_t>();
 
     uintptr_t addr = reinterpret_cast<uintptr_t>(col.data());
-    EXPECT_EQ(addr % 16, 0) << "Память должна быть выровнена по 16 байт для SIMD?";
+    EXPECT_EQ(addr % Column::ALIGNMENT, 0) << "Память должна быть выровнена по 64 байт для SIMD";
+}
+
+// === FixedString ===
+
+TEST(ColumnTest, FixedStringAppendAndGet) {
+    Column col(DataType::FIXED_STRING32);
+    col.allocate_aligned<FixedString<32>>();
+    const char* str1 = "Hello";
+    const char* str2 = "World";
+    col.append<FixedString<32>>(str1);
+    col.append<FixedString<32>>(str2);
+    EXPECT_EQ(col.get_row_count(), 2);
+    char* data0 = col.getDataT<FixedString<32>>()[0];
+    char* data1 = col.getDataT<FixedString<32>>()[1];
+    EXPECT_STREQ(data0, str1);
+    EXPECT_STREQ(data1, str2);
 }

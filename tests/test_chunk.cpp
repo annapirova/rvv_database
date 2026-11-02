@@ -49,6 +49,6 @@ TEST(ChunkTest, MoveSemantics) {
 
     Chunk chunk2 = std::move(chunk1);
 
-    EXPECT_EQ(chunk2.get_column(0).get_count(), 1);
-    EXPECT_EQ(chunk2.get_column(0).get<int32_t>()[0], 42);
+    EXPECT_EQ(chunk2.get_column(0).get_row_count(), 1);
+    EXPECT_EQ(chunk2.get_column(0).get<int32_t>(0), 42);
 }
