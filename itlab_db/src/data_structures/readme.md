@@ -1,0 +1,1 @@
+This folder will contain a hash table, FAST and ART trees.

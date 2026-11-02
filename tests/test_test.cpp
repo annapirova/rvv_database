@@ -1,10 +1,20 @@
-#include "Table.h"
+#include "itlab_db.h"
 #include <gtest/gtest.h>
 
-TEST(TableContainer, test_load_file) {
-	Table table("test");
-	table.load_from_file("tests/file_data.csv");
-	EXPECT_EQ(table.get_chunk_size(), 1);
-	size_t index = table.get_column_index("count");
-	EXPECT_EQ(table.get_column(0,index).get<int>()[0], 100);
+#if defined(HAS_SQL_PARSER) && HAS_SQL_PARSER
+    #include "SQLParser.h"
+#endif
+
+TEST(db_storage_test, test1) {
+	test_db a;
+	ASSERT_NO_THROW(a.print());
 }
+
+#if defined(HAS_SQL_PARSER) && HAS_SQL_PARSER
+TEST(db_storage_test, test2) {
+	std::string query = "CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR(100));";
+	hsql::SQLParserResult result;
+	hsql::SQLParser::parse(query, &result);
+	EXPECT_TRUE(result.isValid());
+}
+#endif

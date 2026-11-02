@@ -18,6 +18,9 @@ message("C++ Compiler        :" ${CMAKE_CXX_COMPILER})
 message("C Compiler          :" ${CMAKE_C_COMPILER})
 
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+message(STATUS "Binary dir: ${CMAKE_BINARY_DIR}")
+
+
 
 if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
   message("C++ flags (Debug)   :" ${CMAKE_CXX_FLAGS} " " ${CMAKE_CXX_FLAGS_DEBUG})
@@ -26,6 +29,8 @@ else()
   message("C++ flags (Release) :" ${CMAKE_CXX_FLAGS} " " ${CMAKE_CXX_FLAGS_RELEASE})
   message("C   flags (Release) :" ${CMAKE_C_FLAGS} " " ${CMAKE_C_FLAGS_RELEASE})
 endif()
+
+                                
 
 message ("------------------------ having components -------------------------- ")
 
@@ -37,7 +42,7 @@ message ("---------------------- compiling components ------------------------- 
 status("Build the scalar library                : " ${BUILD_SCALAR})
 status("Build the avx512 library                : " ${BUILD_AVX512})
 status("Build the RVV    library                : " ${BUILD_RVV})
-status("Build sql parser						: " ${WITH_SQLPARSER})
+status("Build sql parser                : " ${WITH_SQLPARSER})
 
 #status("Build the tests for library             : " ${BUILD_TESTS})
 #status("Build the performance tests for library : " ${BUILD_BENCHMARK})

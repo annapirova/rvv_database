@@ -1,4 +1,4 @@
-#include "Value.h"
+#include "../include/Value.h"
 
 bool Value::operator==(const Value& other) const {
     if (type == other.type) {

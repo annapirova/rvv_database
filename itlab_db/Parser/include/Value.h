@@ -2,7 +2,7 @@
 #include <string>
 #include <cstdint>
 #include <stdexcept>
-#include "../Table/include/Column.h" // Для DataType
+#include "../../Table/include/Column.h"
 
 enum class WhereOpType {
     EQUAL, NOTEQUAL, BIGGER, LOWER, BIGGEREQUAL, LOWEREQUAL, AND, OR, NUL, NAME

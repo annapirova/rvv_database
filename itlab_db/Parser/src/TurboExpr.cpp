@@ -1,4 +1,4 @@
-#include "TurboExpr.h"
+#include "../include/TurboExpr.h"
 
 TurboExpr::TurboExpr(hsql::Expr* expr) {
     if (!expr) {
@@ -17,7 +17,7 @@ TurboExpr::TurboExpr(hsql::Expr* expr) {
     } else if (expr->type == hsql::kExprLiteralInt) {
         this->Optype = WhereOpType::NUL;
         this->value = Value(static_cast<int32_t>(expr->ival));
-    } else if (expr->type == hsql::kExprLiteralFloat || expr->type == hsql::kExprLiteralDouble) {
+    } else if (expr->type == hsql::kExprLiteralFloat) {
         this->Optype = WhereOpType::NUL;
         this->value = Value(static_cast<double>(expr->fval));
     } else if (expr->type == hsql::kExprOperator) {
@@ -40,7 +40,7 @@ TurboExpr::~TurboExpr() {
     delete right;
 }
 
-Value TurboExpr::execute_sup(TurboExpr* this_expr, size_t row_id, const Table& table) {
+Value TurboExpr::execute_sup(TurboExpr* this_expr, size_t row_id, Table& table) {
     if (this_expr->getOpType() == WhereOpType::NUL) {
         return this_expr->get_value();
     }
@@ -50,7 +50,7 @@ Value TurboExpr::execute_sup(TurboExpr* this_expr, size_t row_id, const Table& t
             size_t chunk_idx = row_id / 64;
             size_t local_row_id = row_id % 64;
             
-            const Column& col = table.get_chunks()[chunk_idx].get_column(col_id);
+            Column& col = table.get_chunks()[chunk_idx].get_column(col_id);
             switch(col.type()){
                 case DataType::INT32: return Value(col.get<int32_t>()[local_row_id]);
                 case DataType::FLOAT32: return Value(col.get<double>()[local_row_id]);
@@ -62,7 +62,7 @@ Value TurboExpr::execute_sup(TurboExpr* this_expr, size_t row_id, const Table& t
     return Value();
 }
 
-bool TurboExpr::execute(TurboExpr* this_expr, size_t row_id, const Table& table) {
+bool TurboExpr::execute(TurboExpr* this_expr, size_t row_id, Table& table) {
     if (!this_expr) return false;
 
     if (this_expr->getOpType() != WhereOpType::AND && this_expr->getOpType() != WhereOpType::OR && 

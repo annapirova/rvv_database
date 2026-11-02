@@ -12,9 +12,9 @@ public:
 
 class GetTableOperator : public BaseOperator {
 private:
-    const Table& table;
+    Table& table;
 public:
-    GetTableOperator(const Table& _table);
+    GetTableOperator(Table& _table);
     QueryResult execute_operator() override;
 };
 
@@ -33,7 +33,7 @@ private:
     std::vector<std::string> names;
     BaseOperator* where;
 public:
-    SelectOperator(WhereOperator* _where, const std::vector<std::string>& _names);
+    SelectOperator(WhereOperator* _where, std::vector<std::string>& _names);
     ~SelectOperator();
     QueryResult execute_operator() override;
 };

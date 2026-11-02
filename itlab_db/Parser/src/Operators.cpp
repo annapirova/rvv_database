@@ -1,7 +1,7 @@
-#include "Operators.h"
+#include "../include/Operators.h"
 #include <stdexcept>
 
-GetTableOperator::GetTableOperator(const Table& _table) : table(_table) {}
+GetTableOperator::GetTableOperator(Table& _table) : table(_table) {}
 
 QueryResult GetTableOperator::execute_operator() {
     size_t ch_sz = table.get_chunk_size();
@@ -37,7 +37,7 @@ QueryResult WhereOperator::execute_operator() {
     return prev_data;
 }
 
-SelectOperator::SelectOperator(WhereOperator* _where, const std::vector<std::string>& _names) : where(_where), names(_names) {}
+SelectOperator::SelectOperator(WhereOperator* _where,std::vector<std::string>& _names) : where(_where), names(_names) {}
 SelectOperator::~SelectOperator() { delete where; }
 
 QueryResult SelectOperator::execute_operator() {
