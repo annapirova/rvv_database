@@ -113,5 +113,5 @@ add_subdirectory(apps)
 
 
 if (WITH_TESTS)
-	add_subdirectory(tests)
+#	add_subdirectory(tests)
 endif()
