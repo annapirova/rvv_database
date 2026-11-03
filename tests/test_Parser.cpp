@@ -7,14 +7,14 @@
 
 #include <gtest/gtest.h>
 
-#include "SQLParser.h"
-#include "util/sqlhelper.h"
+#include "../thirdparty/sql-parser/src/SQLParser.h"
+#include "../thirdparty/sql-parser/src/util/sqlhelper.h"
 
-#include "../itlab_db/Table/include/Table.h"
-#include "../itlab_db/Parser/include/Value.h"
-#include "../itlab_db/Parser/include/TurboExpr.h"
-#include "../itlab_db/Parser/include/QueryResult.h"
-#include "../itlab_db/Parser/include/Operators.h"
+#include "Table.h"
+#include "Value.h"
+#include "TurboExpr.h"
+#include "QueryResult.h"
+#include "Operators.h"
 
 using namespace std;
 
