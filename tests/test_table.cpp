@@ -1,7 +1,20 @@
 #include <gtest/gtest.h>
 #include "Table.h"
+#include "FixedString.h"
 #include <fstream>
 #include <cstdio>
+
+TEST(TableContainerTest, test_load_file) {
+	Table table("test");
+	table.load_from_file("bin/file_data.csv");
+	EXPECT_EQ(table.get_chunk_size(), 1);
+	size_t index = table.get_column_index("count");
+	int temp = table.get_column(0, index).get<int32_t>(0);
+	EXPECT_EQ(temp, 100);
+    index = table.get_column_index("name");
+    auto res = table.get_column(0, index).get<FixedString32>(0);
+    EXPECT_EQ(res, FixedString32("Igor"));
+}
 
 class TableTest : public ::testing::Test {
 protected:
@@ -11,14 +24,12 @@ protected:
         // Создаём тестовый файл
         std::ofstream file(test_file);
         file << "3\n";                              // 3 колонки
-        file << "id value score\n";                 // имена колонок
-        file << "INT32 INT64 FLOAT32\n";            // типы
-        file << "5\n";                              // 5 строк в колонке 0
-        file << "1\n2\n3\n4\n5\n";                  // данные
-        file << "3\n";                              // 3 строки в колонке 1
-        file << "100\n200\n300\n";                  // данные
-        file << "2\n";                              // 2 строки в колонке 2
-        file << "3.14\n2.71\n";                     // данные
+        file << "id;value;score\n";                 // имена колонок
+        file << "INT32;INT64;FLOAT32\n";            // типы
+        file << "5\n";                              // 5 строк в таблице
+        file << "1;2;3;4;5\n";                      // данные 1 колонки
+        file << "100;200;300;400;500\n";                    // данные 2 колонки
+        file << "3.14;2.71;1.05;7.77;8.88\n";                      // данные 3 колонки
         file.close();
     }
 
@@ -27,27 +38,19 @@ protected:
     }
 };
 
-TEST_F(TableTest, LoadFromExistingFile) {
-	Table table("test");
-	table.load_from_file("bin/file_data.csv");
-	EXPECT_EQ(table.get_chunk_size(), 1);
-	size_t index = table.get_column_index("count");
-	EXPECT_EQ(table.get_column(0,index).get<int>()[0], 100);
-}
-
 TEST_F(TableTest, LoadFromFile) {
     Table table("test_table");
     table.load_from_file(test_file);
 
-    EXPECT_EQ(table.column_names().size(), 3);
-    EXPECT_EQ(table.column_names()[0], "id");
-    EXPECT_EQ(table.column_names()[1], "value");
-    EXPECT_EQ(table.column_names()[2], "score");
+    EXPECT_EQ(table.get_column_names().size(), 3);
+    EXPECT_EQ(table.get_column_names()[0], "id");
+    EXPECT_EQ(table.get_column_names()[1], "value");
+    EXPECT_EQ(table.get_column_names()[2], "score");
 
-    EXPECT_EQ(table.column_types().size(), 3);
-    EXPECT_EQ(table.column_types()[0], DataType::INT32);
-    EXPECT_EQ(table.column_types()[1], DataType::INT64);
-    EXPECT_EQ(table.column_types()[2], DataType::FLOAT32);
+    EXPECT_EQ(table.get_column_types().size(), 3);
+    EXPECT_EQ(table.get_column_types()[0], DataType::INT32);
+    EXPECT_EQ(table.get_column_types()[1], DataType::INT64);
+    EXPECT_EQ(table.get_column_types()[2], DataType::FLOAT32);
 }
 
 TEST_F(TableTest, DataLoadedCorrectly) {
@@ -56,22 +59,22 @@ TEST_F(TableTest, DataLoadedCorrectly) {
 
     // Проверяем данные первой колонки (INT32)
     Column& col0 = table.get_column(0, 0);
-    EXPECT_EQ(col0.get_count(), 5);
-    int32_t* data0 = col0.get<int32_t>();
+    EXPECT_EQ(col0.get_row_count(), 5);
+    int32_t* data0 = col0.getDataT<int32_t>();
     EXPECT_EQ(data0[0], 1);
     EXPECT_EQ(data0[4], 5);
 
     // Проверяем данные второй колонки (INT64)
     Column& col1 = table.get_column(0, 1);
-    EXPECT_EQ(col1.get_count(), 3);
-    int64_t* data1 = col1.get<int64_t>();
+    EXPECT_EQ(col1.get_row_count(), 5);
+    int64_t* data1 = col1.getDataT<int64_t>();
     EXPECT_EQ(data1[0], 100);
     EXPECT_EQ(data1[2], 300);
 
     // Проверяем данные третьей колонки (FLOAT32)
     Column& col2 = table.get_column(0, 2);
-    EXPECT_EQ(col2.get_count(), 2);
-    float* data2 = col2.get<float>();
+    EXPECT_EQ(col2.get_row_count(), 5);
+    float* data2 = col2.getDataT<float>();
     EXPECT_FLOAT_EQ(data2[0], 3.14f);
     EXPECT_FLOAT_EQ(data2[1], 2.71f);
 }
@@ -99,10 +102,10 @@ TEST_F(TableTest, MultipleChunks) {
     EXPECT_EQ(table.get_chunk_size(), 3);
 
     // Первый чанк полный
-    EXPECT_EQ(table.get_column(0, 0).get_count(), Column::MAX_ROWS);
+    EXPECT_EQ(table.get_column(0, 0).get_row_count(), Column::MAX_ROWS);
 
     // Второй чанк содержит остаток
-    EXPECT_EQ(table.get_column(2, 0).get_count(), 36);
+    EXPECT_EQ(table.get_column(2, 0).get_row_count(), 36);
 
     std::remove(big_file.c_str());
 }
@@ -127,6 +130,6 @@ TEST_F(TableTest, ParseType) {
     EXPECT_EQ(table.parse_type("INT32"), DataType::INT32);
     EXPECT_EQ(table.parse_type("INT64"), DataType::INT64);
     EXPECT_EQ(table.parse_type("FLOAT32"), DataType::FLOAT32);
-    EXPECT_EQ(table.parse_type("FIXED_STRING"), DataType::FIXED_STRING);
+    EXPECT_EQ(table.parse_type("FIXED_STRING32"), DataType::FIXED_STRING32);
     EXPECT_THROW(table.parse_type("UNKNOWN"), std::runtime_error);
 }

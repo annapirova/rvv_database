@@ -1,15 +1,8 @@
+4
+id;count;age;name;
+INT32;INT32;INT32;FIXED_STRING32;
 3
-id count age
-INT32 INT32 INT32
-3
-1
-2
-3
-3
-100
-150
-200
-3
-18
-19
-20
+1;2;3
+100;150;200
+18;19;20
+Igor;Maxim;Vlad;Olecia
