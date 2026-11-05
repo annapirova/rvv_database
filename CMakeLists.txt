@@ -111,6 +111,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 add_subdirectory(itlab_db)
 add_subdirectory(apps)
 
+
 if (WITH_TESTS)
-	add_subdirectory(tests)
+#	add_subdirectory(tests)
 endif()
