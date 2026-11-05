@@ -14,7 +14,8 @@
 * [видеолекция Утусикова](https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=https://www.youtube.com/watch%3Fv%3Dk3t96JrX92Y%26xstg%3DCAMSEBUJ_b-oH-PhF0yjBgbwzzE%253D&ved=2ahUKEwjjrNX-1bCXAxVJJRAIHQ6LALYQtwJ6BAgWEAE&usg=AOvVaw2XSCUwvBe509mUpQZSA97m) 
 
 ### 3. ART-дерево (Adaptive Radix Tree)
-Адаптивное префиксное дерево, разработанное для in-memory баз данных.
+Адаптивное префиксное дерево, разработанное для in-memory баз данных
+  * [википедия про более общий случай] (https://en.wikipedia.org/wiki/Radix_tree) 
   * [статья](https://ieeexplore.ieee.org/iel7/6530811/6544790/06544812.pdf?casa_token=UU2QcqvR5HUAAAAA:9DJnRbTqbQtqz5CO7emTUcJIRBIdYslWzMPtbtzfwGkRC3GjYdP4igf4NN1DxSeJWBlIHQQPKd2tkA) 
 ### 4. Ранжирование Okapi BM25
 Функция ранжирования полнотекстового поиска, оценивающая релевантность документа на основе частоты терминов.
