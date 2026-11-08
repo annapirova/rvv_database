@@ -1,10 +1,17 @@
+#include <algorithm>
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <iostream>
 #include <stdexcept>
 #include <vector>
 
-template <typename K, typename V> class HashTable {
+template <typename K, typename V, typename Hash = std::hash<K>> class HashTable;
+
+template <typename K, typename V, typename Hash>
+std::ostream &operator<<(std::ostream &out, const HashTable<K, V, Hash> &h);
+
+template <typename K, typename V, typename Hash> class HashTable {
   enum State : uint8_t { EMPTY, OCCUPIED, TOMBSTONE };
 
   struct Slot {
@@ -16,7 +23,7 @@ template <typename K, typename V> class HashTable {
   std::vector<Slot> table;
   size_t count = 0;      // количество живых элементов
   size_t tombstones = 0; // количество надгробий
-  std::hash<K> hasher;
+  Hash hasher;
 
   static constexpr float MAX_LOAD = 0.5f;    // (count + tombstones) / size
   static constexpr float SHRINK_LOAD = 0.1f; // слишком пустая таблица
@@ -63,181 +70,267 @@ template <typename K, typename V> class HashTable {
       1832561, 1982627, 2144977, 2320627, 2510653, 2716249, 2938679, 3179303,
   };
 
-  static bool isPrime(size_t x) {
-    if (x < 2)
-      return false;
-    if (x % 2 == 0)
-      return x == 2;
-    for (size_t i = 3; i * i <= x; i += 2)
-      if (x % i == 0)
-        return false;
-    return true;
-  }
-  static size_t slowNextPrime(size_t n) {
-    while (!isPrime(n))
-      ++n;
-    return n;
-  }
-
-  static size_t nextPrime(size_t n) {
-    if (n <= PRIMES.front())
-      return PRIMES.front();
-    auto it = std::lower_bound(PRIMES.begin(), PRIMES.end(), n);
-    if (it != PRIMES.end())
-      return *it;
-    return slowNextPrime(n);
-  }
+  static bool isPrime(size_t x);
+  static size_t slowNextPrime(size_t n);
+  static size_t nextPrime(size_t n);
 
   // Начало прыжков
-  size_t homeIndex(const K &key) const { return hasher(key) % table.size(); }
+  size_t homeIndex(const K &key) const;
 
   // Квадратичный поиск: (h + i*i) % size
-  Slot *findSlot(const K &key) {
-    size_t h = homeIndex(key), m = table.size();
-    for (size_t i = 0; i < m; ++i) {
-      size_t idx = (h + i * i) % m;
-      if (table[idx].state == EMPTY)
-        return nullptr;
-      if (table[idx].state == OCCUPIED && table[idx].key == key)
-        return &table[idx];
-    }
-    return nullptr;
-  }
-  const Slot *findSlot(const K &key) const {
-    size_t h = homeIndex(key), m = table.size();
-    for (size_t i = 0; i < m; ++i) {
-      size_t idx = (h + i * i) % m;
-      if (table[idx].state == EMPTY)
-        return nullptr;
-      if (table[idx].state == OCCUPIED && table[idx].key == key)
-        return &table[idx];
-    }
-    return nullptr;
-  }
+  Slot *findSlot(const K &key);
+  const Slot *findSlot(const K &key) const;
 
   // Размещение
-  void place(K key, V value) {
-    size_t h = hasher(key) % table.size(), m = table.size();
-    for (size_t i = 0; i < m; ++i) {
-      size_t idx = (h + i * i) % m;
-      if (table[idx].state != OCCUPIED) {
-        table[idx].key = key;
-        table[idx].value = value;
-        table[idx].state = OCCUPIED;
-        ++count;
-        return;
-      }
-    }
-  }
+  void place(K key, V value);
 
-  void rehashTo(size_t newSize) {
-    newSize = nextPrime(std::max(newSize, MIN_SIZE));
-    std::vector<Slot> old = std::move(table);
-    table.assign(newSize, Slot{});
-    count = 0;
-    tombstones = 0;
-    for (auto &slot : old) {
-      if (slot.state == OCCUPIED)
-        place(std::move(slot.key), std::move(slot.value));
-    }
-  }
+  void rehashTo(size_t newSize);
 
   // Гарантирует строго load < 50% для n элементов
-  size_t sizeForCount(size_t n) const { return nextPrime(n * 2 + 1); }
+  size_t sizeForCount(size_t n) const;
 
 public:
-  explicit HashTable(size_t initial = MIN_SIZE) {
-    table.assign(nextPrime(std::max(initial, MIN_SIZE)), Slot{});
-  }
+  explicit HashTable(size_t initial = MIN_SIZE, Hash h = Hash{});
 
-  void insert(const K &key, const V &value) {
-    // Обновление существующего
-    if (Slot *s = findSlot(key)) {
-      s->value = value;
+  void insert(const K &key, const V &value);
+
+  V &get(const K &key);
+  const V &get(const K &key) const;
+
+  bool remove(const K &key);
+
+  bool contains(const K &key) const;
+  size_t size() const;
+  size_t tombstoneCount() const;
+  size_t capacity() const;
+  bool empty() const;
+
+  friend std::ostream &operator<< <>(std::ostream &out,
+                                     const HashTable<K, V, Hash> &h);
+  void printStats() const;
+};
+
+// ==================================================================
+//  Реализации методов HashTable<K, V, Hash>
+// ==================================================================
+
+template <typename K, typename V, typename Hash>
+bool HashTable<K, V, Hash>::isPrime(size_t x) {
+  if (x < 2)
+    return false;
+  if (x % 2 == 0)
+    return x == 2;
+  for (size_t i = 3; i * i <= x; i += 2)
+    if (x % i == 0)
+      return false;
+  return true;
+}
+
+template <typename K, typename V, typename Hash>
+size_t HashTable<K, V, Hash>::slowNextPrime(size_t n) {
+  while (!isPrime(n))
+    ++n;
+  return n;
+}
+
+template <typename K, typename V, typename Hash>
+size_t HashTable<K, V, Hash>::nextPrime(size_t n) {
+  if (n <= PRIMES.front())
+    return PRIMES.front();
+  auto it = std::lower_bound(PRIMES.begin(), PRIMES.end(), n);
+  if (it != PRIMES.end())
+    return *it;
+  return slowNextPrime(n);
+}
+
+template <typename K, typename V, typename Hash>
+size_t HashTable<K, V, Hash>::homeIndex(const K &key) const {
+  return hasher(key) % table.size();
+}
+
+template <typename K, typename V, typename Hash>
+typename HashTable<K, V, Hash>::Slot *
+HashTable<K, V, Hash>::findSlot(const K &key) {
+  size_t h = homeIndex(key), m = table.size();
+  for (size_t i = 0; i < m; ++i) {
+    size_t idx = (h + i * i) % m;
+    if (table[idx].state == EMPTY)
+      return nullptr;
+    if (table[idx].state == OCCUPIED && table[idx].key == key)
+      return &table[idx];
+  }
+  return nullptr;
+}
+
+template <typename K, typename V, typename Hash>
+const typename HashTable<K, V, Hash>::Slot *
+HashTable<K, V, Hash>::findSlot(const K &key) const {
+  size_t h = homeIndex(key), m = table.size();
+  for (size_t i = 0; i < m; ++i) {
+    size_t idx = (h + i * i) % m;
+    if (table[idx].state == EMPTY)
+      return nullptr;
+    if (table[idx].state == OCCUPIED && table[idx].key == key)
+      return &table[idx];
+  }
+  return nullptr;
+}
+
+template <typename K, typename V, typename Hash>
+void HashTable<K, V, Hash>::place(K key, V value) {
+  size_t h = hasher(key) % table.size(), m = table.size();
+  for (size_t i = 0; i < m; ++i) {
+    size_t idx = (h + i * i) % m;
+    if (table[idx].state != OCCUPIED) {
+      table[idx].key = key;
+      table[idx].value = value;
+      table[idx].state = OCCUPIED;
+      ++count;
       return;
     }
+  }
+}
 
-    // Проверка загрузки
-    if ((float)(count + tombstones + 1) / table.size() >= MAX_LOAD) {
-      size_t target = sizeForCount(count + 1);
-      // Если расти не обязательно — только чистим надгробия
-      if (target > table.size() && tombstones > 0 &&
-          (float)(count + 1) / table.size() < MAX_LOAD) {
-        target = table.size();
-      }
-      rehashTo(target);
-    }
+template <typename K, typename V, typename Hash>
+void HashTable<K, V, Hash>::rehashTo(size_t newSize) {
+  newSize = nextPrime(std::max(newSize, MIN_SIZE));
+  std::vector<Slot> old = std::move(table);
+  table.assign(newSize, Slot{});
+  count = 0;
+  tombstones = 0;
+  for (auto &slot : old) {
+    if (slot.state == OCCUPIED)
+      place(std::move(slot.key), std::move(slot.value));
+  }
+}
 
-    // Квадратичное пробирование
-    size_t h = homeIndex(key), m = table.size();
-    size_t firstTomb = SIZE_MAX;
-    for (size_t i = 0; i < m; ++i) {
-      size_t idx = (h + i * i) % m;
-      if (table[idx].state == EMPTY) {
-        size_t target = (firstTomb != SIZE_MAX) ? firstTomb : idx;
-        if (firstTomb != SIZE_MAX)
-          --tombstones;
-        table[target].key = key;
-        table[target].value = value;
-        table[target].state = OCCUPIED;
-        ++count;
-        return;
-      }
-      if (table[idx].state == TOMBSTONE && firstTomb == SIZE_MAX)
-        firstTomb = idx;
-    }
-    // Страховка (при корректной нагрузке не срабатывает)
-    rehashTo(m * 2);
-    insert(key, value);
+template <typename K, typename V, typename Hash>
+size_t HashTable<K, V, Hash>::sizeForCount(size_t n) const {
+  return nextPrime(n * 2 + 1);
+}
+
+template <typename K, typename V, typename Hash>
+HashTable<K, V, Hash>::HashTable(size_t initial, Hash h)
+    : hasher(std::move(h)) {
+  table.assign(nextPrime(std::max(initial, MIN_SIZE)), Slot{});
+}
+
+template <typename K, typename V, typename Hash>
+void HashTable<K, V, Hash>::insert(const K &key, const V &value) {
+  // Обновление существующего
+  if (Slot *s = findSlot(key)) {
+    s->value = value;
+    return;
   }
 
-  V &get(const K &key) {
-    Slot *s = findSlot(key);
-    if (!s)
-      throw std::out_of_range("Key not found");
-    return s->value;
-  }
-  const V &get(const K &key) const {
-    const Slot *s = findSlot(key);
-    if (!s)
-      throw std::out_of_range("Key not found");
-    return s->value;
-  }
-
-  bool remove(const K &key) {
-    Slot *s = findSlot(key);
-    if (!s)
-      return false;
-    s->state = TOMBSTONE;
-    --count;
-    ++tombstones;
-
-    if (table.size() <= MIN_SIZE)
-      return true;
-
-    float liveLoad = (float)count / table.size();
-    bool tooManyTombstones = tombstones > count;
-    bool tooSparse = liveLoad < SHRINK_LOAD;
-
-    if (tooManyTombstones || tooSparse) {
-      // Рехеш вниз: подбираем размер под оставшиеся элементы
-      size_t newSize = std::min(sizeForCount(count), table.size());
-      rehashTo(newSize);
+  // Проверка загрузки
+  if ((float)(count + tombstones + 1) / table.size() >= MAX_LOAD) {
+    size_t target = sizeForCount(count + 1);
+    // Если расти не обязательно — только чистим надгробия
+    if (target > table.size() && tombstones > 0 &&
+        (float)(count + 1) / table.size() < MAX_LOAD) {
+      target = table.size();
     }
+    rehashTo(target);
+  }
+
+  // Квадратичное пробирование
+  size_t h = homeIndex(key), m = table.size();
+  size_t firstTomb = SIZE_MAX;
+  for (size_t i = 0; i < m; ++i) {
+    size_t idx = (h + i * i) % m;
+    if (table[idx].state == EMPTY) {
+      size_t target = (firstTomb != SIZE_MAX) ? firstTomb : idx;
+      if (firstTomb != SIZE_MAX)
+        --tombstones;
+      table[target].key = key;
+      table[target].value = value;
+      table[target].state = OCCUPIED;
+      ++count;
+      return;
+    }
+    if (table[idx].state == TOMBSTONE && firstTomb == SIZE_MAX)
+      firstTomb = idx;
+  }
+  // Страховка (при корректной нагрузке не срабатывает)
+  rehashTo(m * 2);
+  insert(key, value);
+}
+
+template <typename K, typename V, typename Hash>
+V &HashTable<K, V, Hash>::get(const K &key) {
+  Slot *s = findSlot(key);
+  if (!s)
+    throw std::out_of_range("Key not found");
+  return s->value;
+}
+
+template <typename K, typename V, typename Hash>
+const V &HashTable<K, V, Hash>::get(const K &key) const {
+  const Slot *s = findSlot(key);
+  if (!s)
+    throw std::out_of_range("Key not found");
+  return s->value;
+}
+
+template <typename K, typename V, typename Hash>
+bool HashTable<K, V, Hash>::remove(const K &key) {
+  Slot *s = findSlot(key);
+  if (!s)
+    return false;
+  s->state = TOMBSTONE;
+  --count;
+  ++tombstones;
+
+  if (table.size() <= MIN_SIZE)
     return true;
-  }
 
-  bool contains(const K &key) const { return findSlot(key) != nullptr; }
-  size_t size() const { return count; }
-  size_t tombstoneCount() const { return tombstones; }
-  size_t capacity() const { return table.size(); }
-  bool empty() const { return count == 0; }
+  float liveLoad = (float)count / table.size();
+  bool tooManyTombstones = tombstones > count;
+  bool tooSparse = liveLoad < SHRINK_LOAD;
 
-  friend std::ostream &operator<<(std::ostream &out, const HashTable<K, V> &h) {
-    out << "capacity=" << h.table.size() << " count=" << h.count
-        << " tombstones=" << h.tombstones
-        << " load=" << (float)(h.count + h.tombstones) / h.table.size();
-    return out;
+  if (tooManyTombstones || tooSparse) {
+    // Рехеш вниз: подбираем размер под оставшиеся элементы
+    size_t newSize = std::min(sizeForCount(count), table.size());
+    rehashTo(newSize);
   }
-  void printStats() const { std::cout << *this << std::endl; }
-};
+  return true;
+}
+
+template <typename K, typename V, typename Hash>
+bool HashTable<K, V, Hash>::contains(const K &key) const {
+  return findSlot(key) != nullptr;
+}
+
+template <typename K, typename V, typename Hash>
+size_t HashTable<K, V, Hash>::size() const {
+  return count;
+}
+
+template <typename K, typename V, typename Hash>
+size_t HashTable<K, V, Hash>::tombstoneCount() const {
+  return tombstones;
+}
+
+template <typename K, typename V, typename Hash>
+size_t HashTable<K, V, Hash>::capacity() const {
+  return table.size();
+}
+
+template <typename K, typename V, typename Hash>
+bool HashTable<K, V, Hash>::empty() const {
+  return count == 0;
+}
+
+template <typename K, typename V, typename Hash>
+std::ostream &operator<<(std::ostream &out, const HashTable<K, V, Hash> &h) {
+  out << "capacity=" << h.table.size() << " count=" << h.count
+      << " tombstones=" << h.tombstones
+      << " load=" << (float)(h.count + h.tombstones) / h.table.size();
+  return out;
+}
+
+template <typename K, typename V, typename Hash>
+void HashTable<K, V, Hash>::printStats() const {
+  std::cout << *this << std::endl;
+}
