@@ -32,7 +32,7 @@ template <typename K, typename V, typename Hash> class HashTable {
   size_t count = 0;
   size_t tombstones = 0;
   size_t cap = 0;
-  size_t mask = 0; // cap - 1
+  size_t mask = 0; // cap - 1 // Нужен чтобы не выходить за границы
   Hash hasher;
 
   static uint8_t H2(size_t h);
@@ -151,7 +151,7 @@ HashTable<K, V, Hash>::find(size_t h, const K &key) const {
 }
 
 // ----------------------------------------------------------------
-//  Рехеш: пересоздаём ctrl+slots и вставляем всё заново
+//  Рехеш
 // ----------------------------------------------------------------
 template <typename K, typename V, typename Hash>
 void HashTable<K, V, Hash>::rehash(size_t newCap) {
@@ -198,7 +198,7 @@ void HashTable<K, V, Hash>::insert(const K &key, const V &value) {
     r = find(h, key);
   }
 
-  if (r.index == SIZE_MAX) { // страховка
+  if (r.index == SIZE_MAX) {
     rehash(cap * 2);
     insert(key, value);
     return;
@@ -233,8 +233,13 @@ const V &HashTable<K, V, Hash>::get(const K &key) const {
   return slots[r.index].value;
 }
 
+template <typename K, typename V, typename Hash>
+bool HashTable<K, V, Hash>::contains(const K &key) const {
+  return find(hasher(key), key).found;
+}
+
 // ----------------------------------------------------------------
-//  Удаление + очистка надгробий / рехеш вниз
+//  Удаление
 // ----------------------------------------------------------------
 template <typename K, typename V, typename Hash>
 bool HashTable<K, V, Hash>::remove(const K &key) {
@@ -255,16 +260,11 @@ bool HashTable<K, V, Hash>::remove(const K &key) {
     if (tooSparse || tooManyTombs) {
       size_t target = tooSparse
                           ? std::max(MIN_CAPACITY, roundUpPow2((count + 1) * 2))
-                          : cap; // только чистка надгробий
+                          : cap;
       rehash(target);
     }
   }
   return true;
-}
-
-template <typename K, typename V, typename Hash>
-bool HashTable<K, V, Hash>::contains(const K &key) const {
-  return find(hasher(key), key).found;
 }
 
 // ----------------------------------------------------------------
