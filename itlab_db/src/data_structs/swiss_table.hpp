@@ -117,7 +117,7 @@ HashTable<K, V, Hash>::HashTable(size_t initial, Hash h)
 }
 
 // ----------------------------------------------------------------
-//  Поиск: H2-фильтр + групповое пробирование
+//  Поиск
 // ----------------------------------------------------------------
 template <typename K, typename V, typename Hash>
 typename HashTable<K, V, Hash>::FindResult
@@ -133,12 +133,10 @@ HashTable<K, V, Hash>::find(size_t h, const K &key) const {
       size_t idx = (groupStart + i) & mask;
       uint8_t c = ctrl[idx];
 
-      // Быстрая проверка: H2 и только потом — ключ.
       if (c == h2 && slots[idx].key == key)
         return {idx, true, false};
 
       if (c == EMPTY_BYTE) {
-        // EMPTY обрывает пробу: ключа за этой точкой быть не может.
         if (firstDeleted != SIZE_MAX)
           return {firstDeleted, false, true};
         return {idx, false, false};
@@ -147,8 +145,6 @@ HashTable<K, V, Hash>::find(size_t h, const K &key) const {
         firstDeleted = idx;
     }
   }
-  // Вся таблица без EMPTY — возможно только при load = 1 (не наш случай),
-  // но на всякий случай возвращаем надгробие, если оно было.
   if (firstDeleted != SIZE_MAX)
     return {firstDeleted, false, true};
   return {SIZE_MAX, false, false};
