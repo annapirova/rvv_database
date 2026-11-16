@@ -211,7 +211,7 @@ private:
         return true;
     }
 
-    template <typename T,std::size_t size>
+    template <std::size_t size>
     void* pereform_root(void* old_root) {
         NodeType type = getType(old_root);
         Node<size>* root = reinterpret_cast<Node<size>*>(old_root);
@@ -273,7 +273,6 @@ private:
         }
     }
 
-    template<typename T>
     bool leaf_compare(Leaf<T>* leaf, std::string key) {
         if (key.length() != leaf->sufix_len) { return false; }
         for (int32_t i = 0;i < leaf->sufix_len;++i) {
@@ -282,19 +281,17 @@ private:
         return true;
     }
 
-    template<typename T>
     void leaf_update(Leaf<T>* leaf, T new_value) {
         leaf->value = new_value;
     }
 
-    template <typename T>
     Leaf<T>* create_leaf(std::string key,T value) {
         Leaf<T>* new_leaf = leaf_alloc.allocate(1);
         leaf_alloc.construct(new_leaf, key, value);
         return new_leaf;
     }
 
-    template <typename T>
+    
     Node<4>* leaf_split(Leaf<T>* old_leaf, std::string new_key, T new_value) {
         Node<4>* new_node = create_node<4>();
         std::string pref = find_prefix(new_key, std::string(old_leaf->sufix));
@@ -308,7 +305,7 @@ private:
         return new_node;
     }
     
-    template <std::size_t size,typename T>
+    template <std::size_t size>
     void* node_split(void* split, std::string key, T value) {
         Node<size>* node = reinterpret_cast<Node<size>*>(split);
         std::string pref = find_prefix(key, std::string(node->prefix));
@@ -321,7 +318,7 @@ private:
         return reinterpret_cast<void*>(new_node);
     }
 
-    template <typename T>
+    
     void* insert_recursive(void* current_node, std::string key, T value) {
         NodeType type = getType(current_node);
         switch (type) {
@@ -447,7 +444,6 @@ private:
         }
     }
 
-    template <typename T>
     T search(void* start_node,std::string key) {
         NodeType type = getType(start_node);
         bool isFind = false; 
@@ -509,7 +505,6 @@ private:
         }
     }
 public:
-    template<typename T>
     void insert(std::string key, T value) {
         if (root == nullptr) {
             Leaf<T>* leaf = create_leaf(key, value);
@@ -539,7 +534,6 @@ public:
         Node<size>* new_root = create_node<size>();
         root = reinterpret_cast<void*>(new_root);
     }
-    template <typename T>
     T search(std::string key) {
         return search<T>(root, key);
     }
