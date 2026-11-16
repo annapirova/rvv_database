@@ -515,10 +515,10 @@ public:
                 std::size_t size = getSize(root);
                 switch (size) {
                 case 0: break;
-                case 4: if (!isCheckRootAndKey<4>(key, root)) { root = pereform_root<T, 4>(root); }break;
-                case 16: if (!isCheckRootAndKey<16>(key, root)) { root = pereform_root<T, 16>(root); }break;
-                case 48: if (!isCheckRootAndKey<48>(key, root)) { root = pereform_root<T, 48>(root); }break;
-                case 256: if (!isCheckRootAndKey<256>(key, root)) { root = pereform_root<T, 256>(root); }break;
+                case 4: if (!isCheckRootAndKey<4>(key, root)) { root = pereform_root<4>(root); }break;
+                case 16: if (!isCheckRootAndKey<16>(key, root)) { root = pereform_root<16>(root); }break;
+                case 48: if (!isCheckRootAndKey<48>(key, root)) { root = pereform_root<48>(root); }break;
+                case 256: if (!isCheckRootAndKey<256>(key, root)) { root = pereform_root<256>(root); }break;
                 }
             }
             root = insert_recursive(root, key, value);
