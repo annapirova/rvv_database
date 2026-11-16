@@ -17,7 +17,7 @@ TEST(TestArt, TestInsertAndSearch) {
     std::ifstream file2("words.txt");
     for (int i = 0;i < 200;++i) {
         EXPECT_NO_THROW(std::getline(file2, key));
-        EXPECT_EQ(super_tree.search<int>(key), i);
+        EXPECT_EQ(super_tree.search(key), i);
     }
     file2.close();
 }
