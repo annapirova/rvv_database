@@ -310,7 +310,7 @@ private:
         Node<size>* node = reinterpret_cast<Node<size>*>(split);
         std::string pref = find_prefix(key, std::string(node->prefix));
         shiftPrefixLeft(node, pref.length());
-        Leaf<T>* leaf = create_leaf<T>(key.substr(pref.length()), value);
+        Leaf<T>* leaf = create_leaf(key.substr(pref.length()), value);
         Node<4>* new_node = create_node<4>();
         new_node->set_prefix(pref);
         node_add_child<4>(new_node, reinterpret_cast<void*>(leaf), leaf->sufix[0]);
@@ -326,7 +326,7 @@ private:
             Leaf<T>* leaf_node = reinterpret_cast<Leaf<T>*>(current_node);
             if (leaf_compare(leaf_node, key)) { leaf_update(leaf_node, value);return current_node; }
             else {
-                Node<4>* new_node = leaf_split<T>(leaf_node, key, value);
+                Node<4>* new_node = leaf_split(leaf_node, key, value);
                 return reinterpret_cast<void*>(new_node);
             }
         }
@@ -458,7 +458,7 @@ private:
             Node<4>* node = reinterpret_cast<Node<4>*>(start_node);
             for (int32_t i = 0;i < node->count;++i) {
                 if ((node->keys[i] == key.substr(node->prefix_len)[0]) || (key.substr(node->prefix_len).length() == 0 && node->keys[i] == ' ')) {
-                    return search<T>(node->childrens[i], key.substr(node->prefix_len));
+                    return search(node->childrens[i], key.substr(node->prefix_len));
                     isFind = true;
                     break;
                 }
@@ -470,7 +470,7 @@ private:
             Node<16>* node = reinterpret_cast<Node<16>*>(start_node);
             for (int32_t i = 0;i < node->count;++i) {
                 if ((node->keys[i] == key.substr(node->prefix_len)[0]) || (key.substr(node->prefix_len).length() == 0 && node->keys[i] == ' ')) {
-                    return search<T>(node->childrens[i], key.substr(node->prefix_len));
+                    return search(node->childrens[i], key.substr(node->prefix_len));
                     isFind = true;
                     break;
                 }
@@ -482,7 +482,7 @@ private:
             Node<48>* node = reinterpret_cast<Node<48>*>(start_node);
             for (int32_t i = 0;i < node->count;++i) {
                 if ((node->keys[i] == key.substr(node->prefix_len)[0]) || (key.substr(node->prefix_len).length() == 0 && node->keys[i] == ' ')) {
-                    return search<T>(node->childrens[i], key.substr(node->prefix_len));
+                    return search(node->childrens[i], key.substr(node->prefix_len));
                     isFind = true;
                     break;
                 }
@@ -494,7 +494,7 @@ private:
             Node<256>* node = reinterpret_cast<Node<256>*>(start_node);
             for (int32_t i = 0;i < node->count;++i) {
                 if ((node->keys[i] == key.substr(node->prefix_len)[0]) || (key.substr(node->prefix_len).length() == 0 && node->keys[i] == ' ')) {
-                    return search<T>(node->childrens[i], key.substr(node->prefix_len));
+                    return search(node->childrens[i], key.substr(node->prefix_len));
                     isFind = true;
                     break;
                 }
@@ -521,7 +521,7 @@ public:
                 case 256: if (!isCheckRootAndKey<256>(key, root)) { root = pereform_root<T, 256>(root); }break;
                 }
             }
-            root = insert_recursive<T>(root, key, value);
+            root = insert_recursive(root, key, value);
         }
     }
     void* getRoot() {
@@ -535,7 +535,7 @@ public:
         root = reinterpret_cast<void*>(new_root);
     }
     T search(std::string key) {
-        return search<T>(root, key);
+        return search(root, key);
     }
 };
    
