@@ -1,8 +1,12 @@
 #pragma once
 #include <iostream>
 #include <string>
-#include <vector>
 #include <utility>
+#include <memory>
+#include <cstdint>
+#include <new>
+#include <stdexcept>
+
 
 struct PoolState {
     size_t size;
@@ -55,7 +59,7 @@ public:
     }
 
     void deallocate(T* ptr,size_t) {
-        *reinterpret_cast<void**>(ptr) = pointer->free_head; // записать в первые 8 байт указатель на голову
+        *reinterpret_cast<void**>(ptr) = pointer->free_head; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅ 8 пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
         pointer->free_head = ptr;
     }
     bool operator==(const FastAllocator& other)const {
