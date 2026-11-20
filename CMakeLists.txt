@@ -3,7 +3,7 @@ cmake_policy(SET CMP0135 NEW)
 
 project(ITLAB_DB)
 
-set (CMAKE_CONFIGURATION_TYPES "Debug;Release") 
+set (CMAKE_CONFIGURATION_TYPES "Debug;Release")
 set (CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -22,10 +22,9 @@ endif()
 option(WITH_SCALAR_LIB     "Build the scalar library" ON)
 option(WITH_AVX512_LIB     "Build the avx512 library" ON)
 option(WITH_RVV_LIB        "Build the RVV library" ON)
-option(WITH_TESTS		   "Build google test" ON)
-option(WITH_BENCHMARK	   "Build google benchmark" OFF)
-option(WITH_SQLPARSER	   "Build sqlparser" ON)
-
+option(WITH_TESTS          "Build google test" ON)
+option(WITH_BENCHMARK      "Build google benchmark" ON)
+option(WITH_SQLPARSER      "Build sqlparser" ON)
 
 include(cmake/TargetCreationFunctions.cmake)
 include(cmake/TestEnvironment.cmake)
@@ -43,7 +42,7 @@ endif()
 if(BUILD_RVV)
   if(HAVE_RVV_1P0)
     add_compile_options(-DSP_M_RVV_1P0)
-	add_compile_definitions(HAS_RVV=1)
+    add_compile_definitions(HAS_RVV=1)
   endif()
 endif()
 
@@ -74,8 +73,8 @@ if(WITH_BENCHMARK)
 endif()
 
 if (WITH_SQLPARSER)
-	message("Configure sql-parser")
-		add_custom_target(run_sqlparser_makefile
+    message("Configure sql-parser")
+    add_custom_target(run_sqlparser_makefile
         COMMAND make -C "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/sql-parser" clean
         
         COMMAND ${CMAKE_COMMAND} -E env 
@@ -84,7 +83,7 @@ if (WITH_SQLPARSER)
                 CXX="${CMAKE_CXX_COMPILER}" 
                 CFLAGS="${CMAKE_C_FLAGS} -fPIC"      
                 CXXFLAGS="${CMAKE_CXX_FLAGS} -fPIC"
-                AR="${CMAKE_AR}"				
+                AR="${CMAKE_AR}"                
                 static=yes
                 
         COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/thirdparty/lib"
@@ -95,13 +94,12 @@ if (WITH_SQLPARSER)
         VERBATIM
     )
 
-	add_library(sqlparser STATIC IMPORTED GLOBAL)
-	set_target_properties(sqlparser PROPERTIES
+    add_library(sqlparser STATIC IMPORTED GLOBAL)
+    set_target_properties(sqlparser PROPERTIES
         IMPORTED_LOCATION "${CMAKE_BINARY_DIR}/thirdparty/lib/libsqlparser.a"
         INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/sql-parser/src"
     )
 endif()
-
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
@@ -112,5 +110,9 @@ add_subdirectory(itlab_db)
 add_subdirectory(apps)
 
 if (WITH_TESTS)
-	add_subdirectory(tests)
+    add_subdirectory(tests)
+endif()
+
+if (WITH_BENCHMARK)
+    add_subdirectory(benchmarks)
 endif()

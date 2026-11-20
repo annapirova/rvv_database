@@ -6,21 +6,27 @@
 #include <utility>
 #include <vector>
 
-template <typename K, typename V, typename Hash = std::hash<K>> class HashTable;
+template <typename K, typename V, typename Hash = std::hash<K>,
+          size_t GroupSize = 16>
+class HashTable;
 
-template <typename K, typename V, typename Hash>
-std::ostream &operator<<(std::ostream &out, const HashTable<K, V, Hash> &t);
+template <typename K, typename V, typename Hash, size_t GroupSize>
+std::ostream &operator<<(std::ostream &out,
+                         const HashTable<K, V, Hash, GroupSize> &t);
 
-template <typename K, typename V, typename Hash> class HashTable {
+template <typename K, typename V, typename Hash, size_t GroupSize>
+class HashTable {
+  static_assert(GroupSize > 0 && (GroupSize & (GroupSize - 1)) == 0,
+                "GroupSize must be a power of 2");
+
   // ---- control-байты ----
   static constexpr uint8_t EMPTY_BYTE = 0x80;   // 1000 0000
   static constexpr uint8_t DELETED_BYTE = 0xFE; // 1111 1110
   // любое значение < 0x80 — H2-фрагмент хеша
 
-  static constexpr size_t GROUP_SIZE = 16;
+  static constexpr size_t GROUP_SIZE = GroupSize;
   static constexpr size_t MIN_CAPACITY = GROUP_SIZE;
-  static constexpr size_t MAX_LOAD_NUM = 7;
-  static constexpr size_t MAX_LOAD_DEN = 8;
+  const double div_by_loadfactor = 1.142857143; //    1 / 0.875
 
   struct Slot {
     K key{};
@@ -55,7 +61,8 @@ template <typename K, typename V, typename Hash> class HashTable {
   void rehash(size_t newCap);
 
 public:
-  explicit HashTable(size_t initial = MIN_CAPACITY, Hash h = Hash{});
+  explicit HashTable(size_t initial = MIN_CAPACITY,
+                     double _div_by_loadfactor = 1.142857143, Hash h = Hash{});
 
   void insert(const K &key, const V &value);
 
@@ -71,7 +78,7 @@ public:
   bool empty() const;
 
   friend std::ostream &operator<< <>(std::ostream &out,
-                                     const HashTable<K, V, Hash> &t);
+                                     const HashTable<K, V, Hash, GroupSize> &t);
   void printStats() const;
 
   // Отладочный вывод: '.'=EMPTY, 'X'=DELETED, 'O'=OCCUPIED
@@ -79,21 +86,21 @@ public:
 };
 
 // ==================================================================
-//  Реализации методов HashTable<K, V, Hash>
+//  Реализации методов HashTable
 // ==================================================================
 
-template <typename K, typename V, typename Hash>
-uint8_t HashTable<K, V, Hash>::H2(size_t h) {
+template <typename K, typename V, typename Hash, size_t GroupSize>
+uint8_t HashTable<K, V, Hash, GroupSize>::H2(size_t h) {
   return static_cast<uint8_t>(h & 0x7F);
 }
 
-template <typename K, typename V, typename Hash>
-size_t HashTable<K, V, Hash>::H1(size_t h) const {
+template <typename K, typename V, typename Hash, size_t GroupSize>
+size_t HashTable<K, V, Hash, GroupSize>::H1(size_t h) const {
   return (h >> 7) & mask;
 }
 
-template <typename K, typename V, typename Hash>
-size_t HashTable<K, V, Hash>::roundUpPow2(size_t n) {
+template <typename K, typename V, typename Hash, size_t GroupSize>
+size_t HashTable<K, V, Hash, GroupSize>::roundUpPow2(size_t n) {
   if (n <= 1)
     return 1;
   --n;
@@ -106,9 +113,10 @@ size_t HashTable<K, V, Hash>::roundUpPow2(size_t n) {
   return n + 1;
 }
 
-template <typename K, typename V, typename Hash>
-HashTable<K, V, Hash>::HashTable(size_t initial, Hash h)
-    : hasher(std::move(h)) {
+template <typename K, typename V, typename Hash, size_t GroupSize>
+HashTable<K, V, Hash, GroupSize>::HashTable(size_t initial,
+                                            double _div_by_loadfactor, Hash h)
+    : div_by_loadfactor(_div_by_loadfactor), hasher(std::move(h)) {
   size_t c = std::max(MIN_CAPACITY, roundUpPow2(initial));
   slots.resize(c);
   ctrl.assign(c, EMPTY_BYTE);
@@ -119,32 +127,39 @@ HashTable<K, V, Hash>::HashTable(size_t initial, Hash h)
 // ----------------------------------------------------------------
 //  Поиск
 // ----------------------------------------------------------------
-template <typename K, typename V, typename Hash>
-typename HashTable<K, V, Hash>::FindResult
-HashTable<K, V, Hash>::find(size_t h, const K &key) const {
+template <typename K, typename V, typename Hash, size_t GroupSize>
+typename HashTable<K, V, Hash, GroupSize>::FindResult
+HashTable<K, V, Hash, GroupSize>::find(size_t h, const K &key) const {
   uint8_t h2 = H2(h);
   size_t start = H1(h);
   size_t firstDeleted = SIZE_MAX;
   size_t groups = cap / GROUP_SIZE;
 
+  const uint8_t* __restrict ctrlPtr = ctrl.data();
+  const auto* __restrict slotsPtr = slots.data();
+
   for (size_t g = 0; g < groups; ++g) {
-    size_t groupStart = (start + g * GROUP_SIZE) & mask;
+    const size_t groupStart = (start + g * GROUP_SIZE) & mask;
+    
     for (size_t i = 0; i < GROUP_SIZE; ++i) {
-      size_t idx = (groupStart + i) & mask;
-      uint8_t c = ctrl[idx];
+      const size_t idx = (groupStart + i) & mask;
+      const uint8_t c = ctrlPtr[idx];
 
-      if (c == h2 && slots[idx].key == key)
+      if (c == h2 && slotsPtr[idx].key == key) {
         return {idx, true, false};
-
+      }
       if (c == EMPTY_BYTE) {
-        if (firstDeleted != SIZE_MAX)
+        if (firstDeleted != SIZE_MAX) {
           return {firstDeleted, false, true};
+        }
         return {idx, false, false};
       }
-      if (c == DELETED_BYTE && firstDeleted == SIZE_MAX)
+      if (c == DELETED_BYTE && firstDeleted == SIZE_MAX) {
         firstDeleted = idx;
+      }
     }
   }
+
   if (firstDeleted != SIZE_MAX)
     return {firstDeleted, false, true};
   return {SIZE_MAX, false, false};
@@ -153,10 +168,10 @@ HashTable<K, V, Hash>::find(size_t h, const K &key) const {
 // ----------------------------------------------------------------
 //  Рехеш
 // ----------------------------------------------------------------
-template <typename K, typename V, typename Hash>
-void HashTable<K, V, Hash>::rehash(size_t newCap) {
-  size_t needed = std::max(
-      MIN_CAPACITY, roundUpPow2((count * MAX_LOAD_DEN) / MAX_LOAD_NUM + 1));
+template <typename K, typename V, typename Hash, size_t GroupSize>
+void HashTable<K, V, Hash, GroupSize>::rehash(size_t newCap) {
+  size_t needed =
+      std::max(MIN_CAPACITY, roundUpPow2(count * div_by_loadfactor + 1));
   size_t nc = std::max(needed, roundUpPow2(newCap));
   if (nc == cap && tombstones == 0)
     return;
@@ -182,8 +197,8 @@ void HashTable<K, V, Hash>::rehash(size_t newCap) {
 // ----------------------------------------------------------------
 //  Вставка / обновление
 // ----------------------------------------------------------------
-template <typename K, typename V, typename Hash>
-void HashTable<K, V, Hash>::insert(const K &key, const V &value) {
+template <typename K, typename V, typename Hash, size_t GroupSize>
+void HashTable<K, V, Hash, GroupSize>::insert(const K &key, const V &value) {
   size_t h = hasher(key);
   FindResult r = find(h, key);
 
@@ -192,7 +207,7 @@ void HashTable<K, V, Hash>::insert(const K &key, const V &value) {
     return;
   }
 
-  if ((count + tombstones + 1) * MAX_LOAD_DEN > cap * MAX_LOAD_NUM) {
+  if ((count + tombstones + 1) * div_by_loadfactor > cap) {
     rehash(cap * 2);
     h = hasher(key);
     r = find(h, key);
@@ -215,8 +230,8 @@ void HashTable<K, V, Hash>::insert(const K &key, const V &value) {
 // ----------------------------------------------------------------
 //  Получение
 // ----------------------------------------------------------------
-template <typename K, typename V, typename Hash>
-V &HashTable<K, V, Hash>::get(const K &key) {
+template <typename K, typename V, typename Hash, size_t GroupSize>
+V &HashTable<K, V, Hash, GroupSize>::get(const K &key) {
   size_t h = hasher(key);
   FindResult r = find(h, key);
   if (!r.found)
@@ -224,8 +239,8 @@ V &HashTable<K, V, Hash>::get(const K &key) {
   return slots[r.index].value;
 }
 
-template <typename K, typename V, typename Hash>
-const V &HashTable<K, V, Hash>::get(const K &key) const {
+template <typename K, typename V, typename Hash, size_t GroupSize>
+const V &HashTable<K, V, Hash, GroupSize>::get(const K &key) const {
   size_t h = hasher(key);
   FindResult r = find(h, key);
   if (!r.found)
@@ -233,16 +248,16 @@ const V &HashTable<K, V, Hash>::get(const K &key) const {
   return slots[r.index].value;
 }
 
-template <typename K, typename V, typename Hash>
-bool HashTable<K, V, Hash>::contains(const K &key) const {
+template <typename K, typename V, typename Hash, size_t GroupSize>
+bool HashTable<K, V, Hash, GroupSize>::contains(const K &key) const {
   return find(hasher(key), key).found;
 }
 
 // ----------------------------------------------------------------
 //  Удаление
 // ----------------------------------------------------------------
-template <typename K, typename V, typename Hash>
-bool HashTable<K, V, Hash>::remove(const K &key) {
+template <typename K, typename V, typename Hash, size_t GroupSize>
+bool HashTable<K, V, Hash, GroupSize>::remove(const K &key) {
   size_t h = hasher(key);
   FindResult r = find(h, key);
   if (!r.found)
@@ -270,28 +285,28 @@ bool HashTable<K, V, Hash>::remove(const K &key) {
 // ----------------------------------------------------------------
 //  Геттеры и диагностика
 // ----------------------------------------------------------------
-template <typename K, typename V, typename Hash>
-size_t HashTable<K, V, Hash>::size() const {
+template <typename K, typename V, typename Hash, size_t GroupSize>
+size_t HashTable<K, V, Hash, GroupSize>::size() const {
   return count;
 }
 
-template <typename K, typename V, typename Hash>
-size_t HashTable<K, V, Hash>::tombstoneCount() const {
+template <typename K, typename V, typename Hash, size_t GroupSize>
+size_t HashTable<K, V, Hash, GroupSize>::tombstoneCount() const {
   return tombstones;
 }
 
-template <typename K, typename V, typename Hash>
-size_t HashTable<K, V, Hash>::capacity() const {
+template <typename K, typename V, typename Hash, size_t GroupSize>
+size_t HashTable<K, V, Hash, GroupSize>::capacity() const {
   return cap;
 }
 
-template <typename K, typename V, typename Hash>
-bool HashTable<K, V, Hash>::empty() const {
+template <typename K, typename V, typename Hash, size_t GroupSize>
+bool HashTable<K, V, Hash, GroupSize>::empty() const {
   return count == 0;
 }
 
-template <typename K, typename V, typename Hash>
-void HashTable<K, V, Hash>::printCtrl() const {
+template <typename K, typename V, typename Hash, size_t GroupSize>
+void HashTable<K, V, Hash, GroupSize>::printCtrl() const {
   for (size_t i = 0; i < cap; ++i) {
     uint8_t c = ctrl[i];
     if (c == EMPTY_BYTE)
@@ -304,15 +319,16 @@ void HashTable<K, V, Hash>::printCtrl() const {
   std::cout << '\n';
 }
 
-template <typename K, typename V, typename Hash>
-std::ostream &operator<<(std::ostream &out, const HashTable<K, V, Hash> &t) {
+template <typename K, typename V, typename Hash, size_t GroupSize>
+std::ostream &operator<<(std::ostream &out,
+                         const HashTable<K, V, Hash, GroupSize> &t) {
   out << "capacity=" << t.cap << " count=" << t.count
       << " tombstones=" << t.tombstones
       << " load=" << (float)(t.count + t.tombstones) / t.cap;
   return out;
 }
 
-template <typename K, typename V, typename Hash>
-void HashTable<K, V, Hash>::printStats() const {
+template <typename K, typename V, typename Hash, size_t GroupSize>
+void HashTable<K, V, Hash, GroupSize>::printStats() const {
   std::cout << *this << std::endl;
 }

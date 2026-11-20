@@ -1,8 +1,44 @@
-#include "../itlab_db/src/data_structs/open_addr_hash_table.hpp"
+#include "../itlab_db/src/data_structs/swiss_table.hpp"
 #include <gtest/gtest.h>
 
 #include <random>
 #include <string>
+
+template <typename T>
+T makeVal(int i) {
+    if constexpr (std::is_same_v<T, std::string>) {
+        return "val_" + std::to_string(i);
+    } else {
+        return static_cast<T>(i);
+    }
+}
+
+template <typename T>
+T makeKey(int i) {
+    if constexpr (std::is_same_v<T, std::string>) {
+        return "key_" + std::to_string(i);
+    } else {
+        return static_cast<T>(i);
+    }
+}
+
+using MyTypes = ::testing::Types<
+    std::pair<int, int>,
+    std::pair<int, std::string>,
+    std::pair<std::string, int>,
+    std::pair<std::string, std::string>
+>;
+
+template <typename PairType>
+class TypedHashTableTest : public ::testing::Test {
+protected:
+    using Key = typename PairType::first_type;
+    using Value = typename PairType::second_type;
+    HashTable<Key, Value> ht;
+};
+
+TYPED_TEST_SUITE(TypedHashTableTest, MyTypes);
+
 
 struct ZeroHashKey {
   int value = 0;
@@ -167,7 +203,7 @@ TEST(HashTableTest, LoadFactorStaysBelowMax) {
   for (int i = 0; i < 500; ++i) {
     ht.insert(i, i);
     float load = (float)(ht.size() + ht.tombstoneCount()) / ht.capacity();
-    EXPECT_LT(load, 0.5f + 1e-6f) << "at i=" << i;
+    EXPECT_LT(load, 0.875f + 1e-6f) << "at i=" << i;
   }
 }
 
@@ -260,4 +296,116 @@ TEST(HashTableTest, StringKeys) {
 
   ht.insert("apple", 100);
   EXPECT_EQ(ht.get("apple"), 100);
+}
+
+// ============================================================
+// Типизированные шаблонные тесты
+// ============================================================
+
+TYPED_TEST(TypedHashTableTest, DefaultConstructIsEmpty) {
+    EXPECT_EQ(this->ht.size(), 0u);
+    EXPECT_TRUE(this->ht.empty());
+    EXPECT_GT(this->ht.capacity(), 0u);
+    EXPECT_EQ(this->ht.tombstoneCount(), 0u);
+}
+
+TYPED_TEST(TypedHashTableTest, InsertGetAndUpdate) {
+    auto k1 = makeKey<typename TestFixture::Key>(1);
+    auto v1 = makeVal<typename TestFixture::Value>(100);
+    auto v2 = makeVal<typename TestFixture::Value>(200);
+
+    this->ht.insert(k1, v1);
+    EXPECT_EQ(this->ht.size(), 1u);
+    EXPECT_TRUE(this->ht.contains(k1));
+    EXPECT_EQ(this->ht.get(k1), v1);
+
+    this->ht.insert(k1, v2);
+    EXPECT_EQ(this->ht.size(), 1u);
+    EXPECT_EQ(this->ht.get(k1), v2);
+}
+
+TYPED_TEST(TypedHashTableTest, GetThrowsOnMissing) {
+    auto k1 = makeKey<typename TestFixture::Key>(1);
+    auto k2 = makeKey<typename TestFixture::Key>(2);
+    this->ht.insert(k1, makeVal<typename TestFixture::Value>(10));
+
+    EXPECT_THROW(this->ht.get(k2), std::out_of_range);
+
+    const auto& const_ht = this->ht;
+    EXPECT_EQ(const_ht.get(k1), makeVal<typename TestFixture::Value>(10));
+    EXPECT_THROW(const_ht.get(k2), std::out_of_range);
+}
+
+TYPED_TEST(TypedHashTableTest, RemoveAndReinsert) {
+    auto k1 = makeKey<typename TestFixture::Key>(1);
+    auto k2 = makeKey<typename TestFixture::Key>(2);
+    auto v1 = makeVal<typename TestFixture::Value>(10);
+    auto v2 = makeVal<typename TestFixture::Value>(20);
+    auto v1_new = makeVal<typename TestFixture::Value>(99);
+
+    this->ht.insert(k1, v1);
+    this->ht.insert(k2, v2);
+
+    EXPECT_TRUE(this->ht.remove(k1));
+    EXPECT_FALSE(this->ht.remove(k1));
+    EXPECT_FALSE(this->ht.contains(k1));
+    EXPECT_EQ(this->ht.size(), 1u);
+
+    this->ht.insert(k1, v1_new);
+    EXPECT_EQ(this->ht.size(), 2u);
+    EXPECT_EQ(this->ht.get(k1), v1_new);
+    EXPECT_EQ(this->ht.get(k2), v2);
+}
+
+TYPED_TEST(TypedHashTableTest, RehashUpAndDown) {
+    constexpr int N = 300;
+    size_t initialCap = this->ht.capacity();
+
+    for (int i = 0; i < N; ++i) {
+        this->ht.insert(makeKey<typename TestFixture::Key>(i),
+                        makeVal<typename TestFixture::Value>(i * 10));
+    }
+
+    size_t grownCap = this->ht.capacity();
+    EXPECT_GT(grownCap, initialCap);
+    EXPECT_EQ(this->ht.size(), static_cast<size_t>(N));
+
+    for (int i = 0; i < N - 5; ++i) {
+        EXPECT_TRUE(this->ht.remove(makeKey<typename TestFixture::Key>(i)));
+    }
+
+    EXPECT_LT(this->ht.capacity(), grownCap);
+    EXPECT_EQ(this->ht.size(), 5u);
+
+    for (int i = N - 5; i < N; ++i) {
+        EXPECT_EQ(this->ht.get(makeKey<typename TestFixture::Key>(i)),
+                  makeVal<typename TestFixture::Value>(i * 10));
+    }
+}
+
+TYPED_TEST(TypedHashTableTest, RandomizedStressTest) {
+    std::mt19937 rng(42);
+    std::uniform_int_distribution<int> dist(0, 199);
+    std::unordered_map<typename TestFixture::Key, typename TestFixture::Value> ref;
+
+    for (int step = 0; step < 1500; ++step) {
+        int id = dist(rng);
+        auto k = makeKey<typename TestFixture::Key>(id);
+        int op = step % 3;
+
+        if (op == 0 || op == 1) {
+            auto v = makeVal<typename TestFixture::Value>(step);
+            this->ht.insert(k, v);
+            ref[k] = v;
+        } else {
+            bool expected = ref.erase(k) > 0;
+            EXPECT_EQ(this->ht.remove(k), expected);
+        }
+    }
+
+    EXPECT_EQ(this->ht.size(), ref.size());
+    for (const auto& [k, v] : ref) {
+        ASSERT_TRUE(this->ht.contains(k));
+        EXPECT_EQ(this->ht.get(k), v);
+    }
 }
