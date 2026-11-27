@@ -9,3 +9,11 @@ target_include_directories(db_benchmarks PRIVATE
 target_link_libraries(db_benchmarks PRIVATE
     benchmark::benchmark_main
 )
+
+if(WITH_ABSEIL)
+    target_link_libraries(db_benchmarks PRIVATE
+        absl::flat_hash_map
+        absl::hash
+    )
+    target_compile_definitions(db_benchmarks PRIVATE HAS_ABSEIL=1)
+endif()

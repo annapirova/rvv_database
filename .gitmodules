@@ -7,3 +7,6 @@
 [submodule "thirdparty/sql-parser"]
 	path = thirdparty/sql-parser
 	url = https://github.com/hyrise/sql-parser.git
+[submodule "thirdparty/abseil-cpp"]
+	path = thirdparty/abseil-cpp
+	url = https://github.com/abseil/abseil-cpp.git

@@ -24,7 +24,8 @@ option(WITH_AVX512_LIB     "Build the avx512 library" ON)
 option(WITH_RVV_LIB        "Build the RVV library" ON)
 option(WITH_TESTS          "Build google test" ON)
 option(WITH_BENCHMARK      "Build google benchmark" ON)
-option(WITH_SQLPARSER      "Build sqlparser" ON)
+option(WITH_SQLPARSER      "Build sqlparser" OFF)
+option(WITH_ABSEIL         "Build abseil-cpp" ON)
 
 include(cmake/TargetCreationFunctions.cmake)
 include(cmake/TestEnvironment.cmake)
@@ -48,6 +49,10 @@ endif()
 
 if(WITH_SQLPARSER)
     add_compile_definitions(HAS_SQL_PARSER=1)
+endif()
+
+if(WITH_ABSEIL)
+    add_compile_definitions(HAS_ABSEIL=1)
 endif()
 
 set_property(GLOBAL PROPERTY LIBS_P "")
@@ -99,6 +104,13 @@ if (WITH_SQLPARSER)
         IMPORTED_LOCATION "${CMAKE_BINARY_DIR}/thirdparty/lib/libsqlparser.a"
         INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/sql-parser/src"
     )
+endif()
+
+if(WITH_ABSEIL)
+    set(BUILD_TESTING       OFF CACHE BOOL "" FORCE)
+    set(ABSL_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+
+    add_subdirectory("thirdparty/abseil-cpp" EXCLUDE_FROM_ALL)
 endif()
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")

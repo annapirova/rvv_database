@@ -26,7 +26,8 @@ class HashTable {
 
   static constexpr size_t GROUP_SIZE = GroupSize;
   static constexpr size_t MIN_CAPACITY = GROUP_SIZE;
-  const double div_by_loadfactor = 1.142857143; //    1 / 0.875
+  const int loadfactor_numerator = 7;
+  const int loadfactor_denominator = 8;
 
   struct Slot {
     K key{};
@@ -35,10 +36,13 @@ class HashTable {
 
   std::vector<Slot> slots;
   std::vector<uint8_t> ctrl; // control-байты
+  std::vector<uint8_t> bloom_mas;
+  bool bloom_enabled = true;
   size_t count = 0;
   size_t tombstones = 0;
   size_t cap = 0;
-  size_t mask = 0; // cap - 1 // Нужен чтобы не выходить за границы
+  size_t mask = 0;    // cap - 1 // Нужен чтобы не выходить за границы
+  uint32_t bmask = 0; // cap/2 - 1
   Hash hasher;
 
   static uint8_t H2(size_t h);
@@ -60,9 +64,12 @@ class HashTable {
 
   void rehash(size_t newCap);
 
+  void bloom_change(size_t h, int step);
+  bool bloom_check(size_t h) const;
+
 public:
-  explicit HashTable(size_t initial = MIN_CAPACITY,
-                     double _div_by_loadfactor = 1.142857143, Hash h = Hash{});
+  explicit HashTable(size_t initial = MIN_CAPACITY, int _loadfactor_num = 7,
+                     int _loadfactor_den = 8, bool bloom = true, Hash h = Hash{});
 
   void insert(const K &key, const V &value);
 
@@ -114,14 +121,24 @@ size_t HashTable<K, V, Hash, GroupSize>::roundUpPow2(size_t n) {
 }
 
 template <typename K, typename V, typename Hash, size_t GroupSize>
-HashTable<K, V, Hash, GroupSize>::HashTable(size_t initial,
-                                            double _div_by_loadfactor, Hash h)
-    : div_by_loadfactor(_div_by_loadfactor), hasher(std::move(h)) {
+HashTable<K, V, Hash, GroupSize>::HashTable(size_t initial, int _loadfactor_num,
+                                            int _loadfactor_den, bool bloom, Hash h)
+    : loadfactor_numerator(_loadfactor_num),
+      loadfactor_denominator(_loadfactor_den),
+      bloom_enabled(bloom),
+      hasher(std::move(h)) {
   size_t c = std::max(MIN_CAPACITY, roundUpPow2(initial));
   slots.resize(c);
   ctrl.assign(c, EMPTY_BYTE);
   cap = c;
   mask = c - 1;
+  if (bloom_enabled) {
+    bmask = c >> 1;
+    bloom_mas.assign(bmask--, 0);
+  } else {
+    bmask = 0;
+    bloom_mas.clear();
+  }
 }
 
 // ----------------------------------------------------------------
@@ -135,12 +152,12 @@ HashTable<K, V, Hash, GroupSize>::find(size_t h, const K &key) const {
   size_t firstDeleted = SIZE_MAX;
   size_t groups = cap / GROUP_SIZE;
 
-  const uint8_t* __restrict ctrlPtr = ctrl.data();
-  const auto* __restrict slotsPtr = slots.data();
+  const uint8_t *__restrict ctrlPtr = ctrl.data();
+  const auto *__restrict slotsPtr = slots.data();
 
   for (size_t g = 0; g < groups; ++g) {
     const size_t groupStart = (start + g * GROUP_SIZE) & mask;
-    
+
     for (size_t i = 0; i < GROUP_SIZE; ++i) {
       const size_t idx = (groupStart + i) & mask;
       const uint8_t c = ctrlPtr[idx];
@@ -170,8 +187,9 @@ HashTable<K, V, Hash, GroupSize>::find(size_t h, const K &key) const {
 // ----------------------------------------------------------------
 template <typename K, typename V, typename Hash, size_t GroupSize>
 void HashTable<K, V, Hash, GroupSize>::rehash(size_t newCap) {
-  size_t needed =
-      std::max(MIN_CAPACITY, roundUpPow2(count * div_by_loadfactor + 1));
+  size_t needed = std::max(
+      MIN_CAPACITY,
+      roundUpPow2((count * loadfactor_denominator) / loadfactor_numerator + 1));
   size_t nc = std::max(needed, roundUpPow2(newCap));
   if (nc == cap && tombstones == 0)
     return;
@@ -182,8 +200,15 @@ void HashTable<K, V, Hash, GroupSize>::rehash(size_t newCap) {
 
   slots.assign(nc, Slot{});
   ctrl.assign(nc, EMPTY_BYTE);
-  cap = nc;
+    cap = nc;
   mask = nc - 1;
+  if (bloom_enabled) {
+    bmask = nc >> 1;
+    bloom_mas.assign(bmask--, 0);
+  } else {
+    bmask = 0;
+    bloom_mas.clear();
+  }
   count = 0;
   tombstones = 0;
 
@@ -192,6 +217,39 @@ void HashTable<K, V, Hash, GroupSize>::rehash(size_t newCap) {
     if (c != EMPTY_BYTE && c != DELETED_BYTE)
       insert(std::move(oldSlots[i].key), std::move(oldSlots[i].value));
   }
+}
+
+// ----------------------------------------------------------------
+//  Bloom
+// ----------------------------------------------------------------
+template <typename K, typename V, typename Hash, size_t GroupSize>
+void HashTable<K, V, Hash, GroupSize>::bloom_change(size_t h, int step) {
+  if (!bloom_enabled) return;
+
+  uint32_t a = static_cast<uint32_t>(h);
+  uint32_t b = static_cast<uint32_t>(h >> 32) | 1;
+  for (int i = 0; i < 2; ++i) {
+    uint8_t &counter = bloom_mas[a & bmask];
+    if (step > 0) {
+      if (counter < UINT8_MAX) ++counter;
+    } else if (step < 0) {
+      if (counter > 0 && counter < UINT8_MAX) --counter;
+    }
+    a += b;
+  }
+}
+
+template <typename K, typename V, typename Hash, size_t GroupSize>
+bool HashTable<K, V, Hash, GroupSize>::bloom_check(size_t h) const {
+  if (!bloom_enabled) return true;   // фильтр выключен — "пропускаем" всегда
+
+  uint32_t a = static_cast<uint32_t>(h);
+  uint32_t b = static_cast<uint32_t>(h >> 32) | 1;
+  for (int i = 0; i < 2; ++i) {
+    if (bloom_mas[a & bmask] == 0) return false;
+    a += b;
+  }
+  return true;
 }
 
 // ----------------------------------------------------------------
@@ -207,7 +265,8 @@ void HashTable<K, V, Hash, GroupSize>::insert(const K &key, const V &value) {
     return;
   }
 
-  if ((count + tombstones + 1) * div_by_loadfactor > cap) {
+  if ((count + tombstones + 1) * loadfactor_denominator >
+      cap * loadfactor_numerator) {
     rehash(cap * 2);
     h = hasher(key);
     r = find(h, key);
@@ -225,6 +284,7 @@ void HashTable<K, V, Hash, GroupSize>::insert(const K &key, const V &value) {
   slots[r.index].value = value;
   ctrl[r.index] = H2(h);
   ++count;
+  bloom_change(h, 1);
 }
 
 // ----------------------------------------------------------------
@@ -233,6 +293,9 @@ void HashTable<K, V, Hash, GroupSize>::insert(const K &key, const V &value) {
 template <typename K, typename V, typename Hash, size_t GroupSize>
 V &HashTable<K, V, Hash, GroupSize>::get(const K &key) {
   size_t h = hasher(key);
+  if (!bloom_check(h)) {
+    throw std::out_of_range("Key not found");
+  }
   FindResult r = find(h, key);
   if (!r.found)
     throw std::out_of_range("Key not found");
@@ -242,6 +305,9 @@ V &HashTable<K, V, Hash, GroupSize>::get(const K &key) {
 template <typename K, typename V, typename Hash, size_t GroupSize>
 const V &HashTable<K, V, Hash, GroupSize>::get(const K &key) const {
   size_t h = hasher(key);
+  if (!bloom_check(h)) {
+    throw std::out_of_range("Key not found");
+  }
   FindResult r = find(h, key);
   if (!r.found)
     throw std::out_of_range("Key not found");
@@ -250,7 +316,8 @@ const V &HashTable<K, V, Hash, GroupSize>::get(const K &key) const {
 
 template <typename K, typename V, typename Hash, size_t GroupSize>
 bool HashTable<K, V, Hash, GroupSize>::contains(const K &key) const {
-  return find(hasher(key), key).found;
+  size_t h = hasher(key);
+  return bloom_check(h) & find(h, key).found;
 }
 
 // ----------------------------------------------------------------
@@ -262,6 +329,8 @@ bool HashTable<K, V, Hash, GroupSize>::remove(const K &key) {
   FindResult r = find(h, key);
   if (!r.found)
     return false;
+
+  bloom_change(h, -1);
 
   ctrl[r.index] = DELETED_BYTE;
   slots[r.index].key = K{};
